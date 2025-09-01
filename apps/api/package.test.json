@@ -1,0 +1,17 @@
+{
+  "name": "@chatverse/api-test-dependencies",
+  "private": true,
+  "description": "Additional test dependencies for the API",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.12",
+    "ts-jest": "^29.1.2",
+    "supertest": "^6.3.4",
+    "@types/supertest": "^6.0.2",
+    "mongodb-memory-server": "^9.1.6",
+    "redis-mock": "^0.56.3",
+    "socket.io-client": "^4.7.4",
+    "sharp": "^0.33.2"
+  }
+}

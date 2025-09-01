@@ -1,0 +1,41 @@
+{
+  "name": "chatverse",
+  "version": "1.0.0",
+  "description": "Real-time chat application with PWA support",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:api": "pnpm --filter=api dev",
+    "dev:web": "pnpm --filter=web dev",
+    "build": "pnpm --filter=api build && pnpm --filter=web build",
+    "build:api": "pnpm --filter=api build",
+    "build:web": "pnpm --filter=web build",
+    "lint": "pnpm --filter=* lint",
+    "lint:fix": "pnpm --filter=* lint:fix",
+    "type-check": "pnpm --filter=* type-check",
+    "test": "pnpm --filter=* test",
+    "test:e2e": "pnpm --filter=api test:e2e",
+    "clean": "pnpm --filter=* clean && rm -rf node_modules",
+    "docker:dev": "docker-compose -f infra/docker/docker-compose.dev.yml up --build",
+    "docker:down": "docker-compose -f infra/docker/docker-compose.dev.yml down",
+    "seed": "node scripts/seed.mjs",
+    "migrate": "node scripts/migrate.mjs"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.4"
+}

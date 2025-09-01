@@ -1,0 +1,47 @@
+{
+  "name": "@chatverse/ui",
+  "version": "1.0.0",
+  "description": "Shared UI components for ChatVerse",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rimraf dist",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles": "./dist/styles.css"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "dependencies": {
+    "@chatverse/types": "workspace:*",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.263.1"
+  },
+  "devDependencies": {
+    "@storybook/addon-essentials": "^7.6.17",
+    "@storybook/addon-interactions": "^7.6.17",
+    "@storybook/addon-links": "^7.6.17",
+    "@storybook/blocks": "^7.6.17",
+    "@storybook/react": "^7.6.17",
+    "@storybook/react-vite": "^7.6.17",
+    "@storybook/testing-library": "^0.2.2",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "rimraf": "^5.0.5",
+    "storybook": "^7.6.17",
+    "typescript": "^5.3.3"
+  },
+  "keywords": ["react", "components", "ui", "design-system"],
+  "author": "ChatVerse Team",
+  "license": "MIT"
+}
