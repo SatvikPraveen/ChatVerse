@@ -1,0 +1,26 @@
+{
+  "name": "@chatverse/e2e",
+  "version": "2.0.0",
+  "description": "Browser-driven end-to-end tests for ChatVerse (Playwright): auth, encrypted direct and group chats, offline/reconnect",
+  "license": "MIT",
+  "author": "Satvik Praveen <satvikpraveen707@gmail.com>",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo \"e2e: run pnpm --filter @chatverse/e2e test:e2e (needs MongoDB + a Playwright browser)\"",
+    "test:e2e": "playwright test",
+    "test:headed": "playwright test --headed",
+    "lint": "eslint tests --ext .ts --max-warnings 0",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@chatverse/eslint-config": "workspace:*",
+    "@chatverse/protocol": "workspace:*",
+    "@playwright/test": "^1.47.2",
+    "@types/node": "^20.16.5",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.4"
+  }
+}

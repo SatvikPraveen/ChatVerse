@@ -25,6 +25,9 @@ logs/
 
 # Test / bench artifacts
 .mongodb-binaries/
+e2e/report/
+e2e/test-results/
+e2e/playwright/.cache/
 bench/results/*.json
 !bench/results/.gitkeep
 !bench/results/baseline-*.json

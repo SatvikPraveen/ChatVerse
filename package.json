@@ -18,6 +18,7 @@
     "type-check": "pnpm -r type-check",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
+    "test:e2e": "pnpm --filter @chatverse/e2e test:e2e",
     "bench": "pnpm --filter @chatverse/bench run bench",
     "docker:dev": "docker compose -f infra/docker/docker-compose.dev.yml up --build",
     "docker:down": "docker compose -f infra/docker/docker-compose.dev.yml down",
