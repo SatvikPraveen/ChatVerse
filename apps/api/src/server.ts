@@ -1,89 +1,74 @@
-// apps/api/src/server.ts
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
-import pinoHttp from 'pino-http';
-import { logger } from './utils/logger.js';
-import { errorHandler } from './middlewares/error.js';
-import { rateLimiter } from './middlewares/rateLimit.js';
-import { env } from './config/env.js';
+import { createServer, type Server as HttpServer } from 'node:http';
+import type { Express } from 'express';
+import { createClock } from './lib/hlc.js';
+import { loadEnv, type Env } from './config/env.js';
+import type { Deps } from './deps.js';
+import { ensureRetentionIndex } from './domain/models/index.js';
+import { createApp } from './http/app.js';
+import { createLogger } from './infra/logger.js';
+import { createMetrics } from './infra/metrics.js';
+import { connectMongo, disconnectMongo } from './infra/mongo.js';
+import { createRedis } from './infra/redis.js';
+import { createGateway, type Gateway } from './realtime/gateway.js';
+import { RealtimeHub } from './realtime/hub.js';
+import { createServices, type Services } from './services/index.js';
 
-// Import routes
-import authRoutes from './routes/auth.routes.js';
-import userRoutes from './routes/users.routes.js';
-import conversationRoutes from './routes/conversations.routes.js';
-import messageRoutes from './routes/messages.routes.js';
-import uploadRoutes from './routes/uploads.routes.js';
-import pushRoutes from './routes/push.routes.js';
+export const VERSION = '2.0.0';
 
-// Import health checks
-import { livenessCheck } from './health/liveness.js';
-import { readinessCheck } from './health/readiness.js';
+export interface RunningServer {
+  deps: Deps;
+  services: Services;
+  app: Express;
+  httpServer: HttpServer;
+  gateway: Gateway;
+  /** Bound port (useful when PORT=0 in tests). */
+  port: number;
+  stop(): Promise<void>;
+}
 
-export function createApp() {
-  const app = express();
+/**
+ * Assemble and start every component. Used by both `index.ts` (production entry) and the test
+ * suite, so the wiring under test is exactly the wiring in production.
+ */
+export async function startServer(overrides: Partial<Env> = {}, options: { connectDb?: boolean } = {}): Promise<RunningServer> {
+  const env: Env = { ...loadEnv(), ...overrides };
+  const logger = createLogger(env);
+  const metrics = createMetrics(env.NODE_ID, env.NODE_ENV !== 'test');
+  const redis = await createRedis(env, logger);
+  if (options.connectDb !== false) await connectMongo(env, logger);
+  await ensureRetentionIndex(env.MESSAGE_RETENTION_DAYS);
 
-  // Security middleware
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "wss:", "ws:"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+  const deps: Deps = { env, logger, redis, metrics, clock: createClock(env.NODE_ID), hub: new RealtimeHub(), startedAt: new Date(), version: VERSION };
+  const services = createServices(deps);
+  const app = createApp(deps, services);
+  const httpServer = createServer(app);
+  const gateway = createGateway(httpServer, deps, services);
 
-  // CORS configuration
-  app.use(cors({
-    origin: env.CORS_ORIGINS,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  }));
-
-  // General middleware
-  app.use(compression());
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-  // Logging middleware
-  app.use(pinoHttp({ logger }));
-
-  // Rate limiting
-  app.use(rateLimiter);
-
-  // Health checks
-  app.get('/health/live', livenessCheck);
-  app.get('/health/ready', readinessCheck);
-
-  // API routes
-  const apiRouter = express.Router();
-
-  apiRouter.use('/auth', authRoutes);
-  apiRouter.use('/users', userRoutes);
-  apiRouter.use('/conversations', conversationRoutes);
-  apiRouter.use('/messages', messageRoutes);
-  apiRouter.use('/uploads', uploadRoutes);
-  apiRouter.use('/push', pushRoutes);
-
-  app.use('/api', apiRouter);
-
-  // 404 handler
-  app.use('*', (req, res) => {
-    res.status(404).json({
-      error: 'Not Found',
-      message: `Route ${req.originalUrl} not found`,
-      statusCode: 404,
-    });
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject);
+    httpServer.listen(env.PORT, env.HOST, () => resolve());
   });
+  const address = httpServer.address();
+  const port = typeof address === 'object' && address ? address.port : env.PORT;
+  logger.info({ port, host: env.HOST, nodeId: env.NODE_ID, redisShared: redis.shared }, 'server listening');
 
-  // Global error handler
-  app.use(errorHandler);
-
-  return app;
+  let stopping = false;
+  return {
+    deps,
+    services,
+    app,
+    httpServer,
+    gateway,
+    port,
+    async stop() {
+      if (stopping) return;
+      stopping = true;
+      logger.info('shutting down');
+      await gateway.close();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      if (options.connectDb !== false) await disconnectMongo();
+      await redis.close();
+      logger.info('shutdown complete');
+    },
+  };
 }

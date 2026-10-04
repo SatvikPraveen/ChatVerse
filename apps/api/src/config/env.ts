@@ -1,54 +1,71 @@
-// apps/api/src/config/env.ts
+import os from 'node:os';
 import { z } from 'zod';
+
+const bool = z
+  .string()
+  .transform((v) => ['1', 'true', 'yes', 'on'].includes(v.toLowerCase()))
+  .pipe(z.boolean());
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().default(3001),
+  HOST: z.string().default('0.0.0.0'),
+  PORT: z.coerce.number().int().min(0).max(65535).default(4000),
+  NODE_ID: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,32}$/)
+    .default(() => os.hostname().replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 32) || 'node'),
 
-  // Database
-  MONGODB_URI: z.string().url(),
-  REDIS_URL: z.string().url(),
+  MONGODB_URI: z.string().min(1),
+  REDIS_URL: z.string().min(1).optional(),
 
-  // JWT
-  JWT_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  ACCESS_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(900),
+  REFRESH_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(2_592_000),
 
-  // CORS
-  CORS_ORIGINS: z.string().transform(val => val.split(',')).default('http://localhost:3000'),
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:5173')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  TRUST_PROXY: bool.default('false'),
+  RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  METRICS_ENABLED: bool.default('true'),
 
-  // AWS S3
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_REGION: z.string().default('us-east-1'),
-  AWS_S3_BUCKET: z.string().optional(),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_PUBLIC_URL: z.string().url().optional(),
 
-  // Rate limiting
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000), // 15 minutes
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
-
-  // Socket rate limiting
-  SOCKET_RATE_LIMIT_POINTS: z.coerce.number().default(30),
-  SOCKET_RATE_LIMIT_DURATION: z.coerce.number().default(60),
-
-  // Logging
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-
-  // Push notifications
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().email().optional(),
+  VAPID_SUBJECT: z.string().optional(),
+
+  MESSAGE_RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
 });
 
-function validateEnv() {
-  try {
-    return envSchema.parse(process.env);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      console.error('❌ Invalid environment variables:', error.errors);
-      process.exit(1);
-    }
-    throw error;
+export type Env = z.infer<typeof envSchema>;
+
+/** Parse and validate process environment. Throws a readable error listing every problem. */
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  // Empty strings in .env files mean "unset".
+  const cleaned: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) if (v !== undefined && v !== '') cleaned[k] = v;
+  const result = envSchema.safeParse(cleaned);
+  if (!result.success) {
+    const problems = result.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new Error(`Invalid environment configuration:\n${problems}`);
   }
+  return result.data;
 }
 
-export const env = validateEnv();
+export function isS3Configured(env: Env): boolean {
+  return Boolean(env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY);
+}
+
+export function isPushConfigured(env: Env): boolean {
+  return Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT);
+}
