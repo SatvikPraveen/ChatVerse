@@ -1,45 +1,44 @@
-// apps/web/src/components/chat/ChatView.tsx
-import React from 'react';
-import MessageList from './MessageList';
-import Composer from './Composer';
-import LoadingSpinner from '../common/LoadingSpinner';
-import { useChatStore } from '../../store/chatStore';
+import { useEffect } from 'react';
+import { openConversation } from '@/lib/messaging';
+import { useAuthStore } from '@/stores/auth';
+import { useConversationsStore } from '@/stores/conversations';
+import { useUiStore } from '@/stores/ui';
+import { Spinner } from '../ui/Spinner';
+import { ChatHeader } from './ChatHeader';
+import { Composer } from './Composer';
+import { InfoPanel } from './InfoPanel';
+import { MessageList } from './MessageList';
+import { TypingIndicator } from './TypingIndicator';
 
-interface ChatViewProps {
-  conversationId: string;
-}
+export function ChatView({ conversationId }: { conversationId: string }) {
+  const user = useAuthStore((s) => s.user);
+  const conversation = useConversationsStore((s) => s.byId[conversationId]);
+  const loaded = useConversationsStore((s) => s.loaded);
+  const infoOpen = useUiStore((s) => s.infoPanelOpen);
+  const toast = useUiStore((s) => s.toast);
 
-export default function ChatView({ conversationId }: ChatViewProps) {
-  const { conversations, isConnected } = useChatStore();
-  const conversation = conversations[conversationId];
+  useEffect(() => {
+    openConversation(conversationId).catch((err: unknown) => toast('error', err instanceof Error ? err.message : 'Could not open conversation'));
+  }, [conversationId, toast]);
 
+  if (!user) return null;
   if (!conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading conversation...</p>
-        </div>
+      <div className="flex flex-1 items-center justify-center text-sm text-muted">
+        {loaded ? 'Conversation not found.' : <Spinner />}
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Connection status banner */}
-      {!isConnected && (
-        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-          <p className="text-sm text-yellow-700 text-center">
-            Reconnecting... Some features may be limited.
-          </p>
-        </div>
-      )}
-
-      {/* Messages */}
-      <MessageList conversationId={conversationId} />
-
-      {/* Message composer */}
-      <Composer conversationId={conversationId} />
+    <div className="flex min-w-0 flex-1">
+      <section className="flex min-w-0 flex-1 flex-col" aria-label="Messages">
+        <ChatHeader conversation={conversation} myUserId={user.id} />
+        <MessageList conversation={conversation} myUserId={user.id} />
+        <TypingIndicator conversationId={conversation.id} />
+        <Composer conversation={conversation} />
+      </section>
+      {infoOpen && <InfoPanel conversation={conversation} myUserId={user.id} />}
     </div>
   );
 }

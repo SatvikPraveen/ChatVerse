@@ -1,75 +1,63 @@
-// apps/web/vite.config.ts
-import { defineConfig } from 'vite';
+import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const API_TARGET = process.env.VITE_API_URL ?? 'http://localhost:4000';
 
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
-      devOptions: { enabled: true },
+      injectRegister: null,
+      devOptions: { enabled: false },
+      includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
         name: 'ChatVerse',
         short_name: 'ChatVerse',
-        description: 'Real-time messaging platform',
-        theme_color: '#000000',
-        background_color: '#ffffff',
+        description: 'End-to-end encrypted real-time messaging',
+        theme_color: '#0f172a',
+        background_color: '#0f172a',
         display: 'standalone',
         scope: '/',
-        start_url: '/',
+        start_url: '/app',
         icons: [
-          {
-            src: 'favicon.ico',
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon'
-          }
-        ]
+          { src: 'icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
+        ],
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\./i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              }
-            }
-          }
-        ]
-      }
-    })
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+      },
+    }),
   ],
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
   server: {
-    port: 3000,
+    port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true
-      },
-      '/socket.io': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        ws: true
-      }
-    }
+      '/api': { target: API_TARGET, changeOrigin: true },
+      '/socket.io': { target: API_TARGET, changeOrigin: true, ws: true },
+    },
   },
   build: {
-    outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          socket: ['socket.io-client'],
-          ui: ['lucide-react', '@tanstack/react-query']
-        }
-      }
-    }
-  }
+        manualChunks(id) {
+          if (id.includes('/node_modules/')) {
+            if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react';
+            if (id.includes('/node_modules/socket.io') || id.includes('/node_modules/engine.io')) return 'realtime';
+            if (id.includes('/node_modules/@noble/')) return 'crypto';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
 });

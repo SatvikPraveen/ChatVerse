@@ -1,78 +1,92 @@
-// apps/web/src/sw.ts
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
-import { clientsClaim, skipWaiting } from 'workbox-core';
-import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { NetworkFirst, CacheFirst } from 'workbox-strategies';
+/// <reference lib="webworker" />
 
-declare const self: ServiceWorkerGlobalScope;
+/**
+ * Service worker: precaches the built app shell (manifest injected by vite-plugin-pwa), serves
+ * navigations from cache when offline, and surfaces Web Push notifications.
+ */
+declare global {
+  interface WorkerGlobalScope {
+    /** Injected by vite-plugin-pwa (workbox injectManifest) at build time. */
+    __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
+  }
+}
+export {};
 
-// Precache all static resources
-precacheAndRoute(self.__WB_MANIFEST);
+const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// Clean up old caches
-cleanupOutdatedCaches();
+const CACHE = 'chatverse-shell-v1';
+// Must stay a literal `self.__WB_MANIFEST` reference so workbox can find the injection point.
+const precacheUrls = self.__WB_MANIFEST.map((e) => e.url);
 
-// Skip waiting and claim clients immediately
-skipWaiting();
-clientsClaim();
-
-// Cache API requests with NetworkFirst strategy
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/'),
-  new NetworkFirst({
-    cacheName: 'api-cache',
-    plugins: [{
-      cacheKeyWillBeUsed: async ({ request }) => {
-        // Remove authorization headers from cache key
-        const url = new URL(request.url);
-        return url.href;
-      }
-    }]
-  })
-);
-
-// Cache images with CacheFirst strategy
-registerRoute(
-  ({ request }) => request.destination === 'image',
-  new CacheFirst({
-    cacheName: 'images-cache',
-  })
-);
-
-// Handle navigation requests (SPA routing)
-const navigationRoute = new NavigationRoute(({ request }) => {
-  return new NetworkFirst({
-    cacheName: 'pages-cache'
-  }).handle({ request, event: new FetchEvent('fetch', { request }) });
-});
-
-registerRoute(navigationRoute);
-
-// Handle push notifications
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-
-  const data = event.data.json();
-  const options = {
-    body: data.body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    data: data.data,
-    actions: data.actions || []
-  };
-
+sw.addEventListener('install', (event) => {
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(precacheUrls))
+      .then(() => sw.skipWaiting()),
   );
 });
 
-// Handle notification clicks
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
+sw.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => sw.clients.claim()),
+  );
+});
 
-  if (event.action === 'open') {
-    event.waitUntil(
-      self.clients.openWindow(event.notification.data?.url || '/')
-    );
+sw.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) return;
+
+  if (request.mode === 'navigate') {
+    // App shell: network first, fall back to the cached index for offline launches.
+    event.respondWith(fetch(request).catch(() => caches.match('/index.html').then((r) => r ?? Response.error())));
+    return;
   }
+  if (url.origin === sw.location.origin) {
+    event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
+  }
+});
+
+interface PushPayload {
+  title?: string;
+  body?: string;
+  url?: string;
+  tag?: string;
+}
+
+sw.addEventListener('push', (event) => {
+  let payload: PushPayload = {};
+  try {
+    payload = (event.data?.json() as PushPayload | null) ?? {};
+  } catch {
+    payload = { body: event.data?.text() };
+  }
+  const options: NotificationOptions = {
+    body: payload.body ?? 'New message',
+    icon: '/icon-192.svg',
+    badge: '/favicon.svg',
+    tag: payload.tag ?? 'chatverse',
+    data: { url: payload.url ?? '/app' },
+  };
+  event.waitUntil(sw.registration.showNotification(payload.title ?? 'ChatVerse', options));
+});
+
+sw.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data as { url?: string } | undefined)?.url ?? '/app';
+  event.waitUntil(
+    sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const existing = list[0];
+      if (existing) {
+        existing.navigate(target).catch(() => undefined);
+        return existing.focus();
+      }
+      return sw.clients.openWindow(target);
+    }),
+  );
 });

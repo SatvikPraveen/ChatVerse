@@ -1,238 +1,152 @@
-// apps/web/src/components/chat/MessageItem.tsx
+import type { Conversation, Message } from '@chatverse/protocol';
+import clsx from 'clsx';
+import { CornerUpLeft, Pencil, SmilePlus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { MoreHorizontal, Reply, Copy, Trash2, Edit3 } from 'lucide-react';
-import { useChatStore } from '../../store/chatStore';
-import Avatar from '../common/Avatar';
-import MessageAttachments from './MessageAttachments';
-import type { Message } from '@chatverse/types';
+import { deleteMessage, toggleReaction } from '@/lib/messaging';
+import { receiptLevel } from '@/lib/receipt-level';
+import { formatTime } from '@/lib/time';
+import { useMessagesStore, type DecryptStatus } from '@/stores/messages';
+import { useUiStore } from '@/stores/ui';
+import { displayNameOf, useUsersStore } from '@/stores/users';
+import { Avatar } from '../ui/Avatar';
+import { ReceiptTicks } from './ReceiptTicks';
 
-interface MessageItemProps {
-  message: Message;
-  showAvatar: boolean;
-  showTimestamp: boolean;
-  isOwn: boolean;
+const QUICK_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
+
+function placeholderFor(status: DecryptStatus | undefined): string {
+  switch (status) {
+    case 'waiting-keys':
+      return '🔑 Waiting for encryption keys…';
+    case 'other-device':
+      return '🔒 Encrypted for another device';
+    case 'failed':
+      return '⚠️ Could not decrypt this message';
+    default:
+      return '🔒 Encrypted message';
+  }
 }
 
-export default function MessageItem({
+export function MessageItem({
   message,
-  showAvatar,
-  showTimestamp,
-  isOwn
-}: MessageItemProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(message.content);
-  const { updateMessage, deleteMessage } = useChatStore();
+  conversation,
+  myUserId,
+  showSender,
+}: {
+  message: Message;
+  conversation: Conversation;
+  myUserId: string;
+  showSender: boolean;
+}) {
+  const users = useUsersStore((s) => s.byId);
+  const plaintext = useMessagesStore((s) => s.plaintext[message.id]);
+  const decrypt = useMessagesStore((s) => s.decrypt[message.id]);
+  const replyTarget = useMessagesStore((s) => (message.replyTo ? s.conversations[message.conversationId]?.byId[message.replyTo] : undefined));
+  const replyPlain = useMessagesStore((s) => (message.replyTo ? s.plaintext[message.replyTo] : undefined));
+  const setReplyTo = useUiStore((s) => s.setReplyTo);
+  const setEditing = useUiStore((s) => s.setEditing);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const handleEdit = async () => {
-    if (editContent.trim() && editContent !== message.content) {
-      try {
-        await updateMessage(message.conversationId, {
-          ...message,
-          content: editContent,
-          isEdited: true,
-        });
-        setIsEditing(false);
-      } catch (error) {
-        console.error('Failed to edit message:', error);
-      }
-    }
-  };
-
-  const handleDelete = async () => {
-    if (window.confirm('Delete this message?')) {
-      try {
-        await deleteMessage(message.conversationId, message.id);
-      } catch (error) {
-        console.error('Failed to delete message:', error);
-      }
-    }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
-    setShowMenu(false);
-  };
-
-  const formatTime = (date: string) => {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
-  };
+  const own = message.senderId === myUserId;
+  const text = message.deletedAt
+    ? 'This message was deleted'
+    : message.kind === 'encrypted'
+      ? (plaintext ?? placeholderFor(decrypt))
+      : (message.text ?? `[${message.kind}]`);
+  const muted = message.deletedAt !== null || (message.kind === 'encrypted' && plaintext === undefined);
 
   return (
-    <div className={`flex gap-3 group hover:bg-gray-50 px-2 py-1 rounded-lg ${
-      isOwn ? 'flex-row-reverse' : 'flex-row'
-    }`}>
-      {/* Avatar */}
-      <div className="flex-shrink-0">
-        {showAvatar ? (
-          <Avatar
-            src={message.sender?.avatar}
-            name={message.sender?.name}
-            size="sm"
-          />
-        ) : (
-          <div className="w-8 h-8" />
+    <li className={clsx('group flex items-end gap-2 px-4', own ? 'justify-end' : 'justify-start')}>
+      {!own && (
+        <span className="w-8 shrink-0">
+          {showSender && <Avatar name={displayNameOf(users, message.senderId)} src={users[message.senderId]?.avatarUrl} size="sm" />}
+        </span>
+      )}
+      <div className={clsx('relative max-w-[75%]', own && 'order-first')}>
+        {showSender && !own && conversation.kind === 'group' && (
+          <p className="mb-0.5 ml-1 text-[11px] font-medium text-muted">{displayNameOf(users, message.senderId)}</p>
         )}
-      </div>
-
-      {/* Message content */}
-      <div className={`flex-1 min-w-0 ${isOwn ? 'text-right' : 'text-left'}`}>
-        {/* Header */}
-        {showAvatar && (
-          <div className={`flex items-center gap-2 mb-1 ${
-            isOwn ? 'justify-end' : 'justify-start'
-          }`}>
-            <span className="font-semibold text-sm text-gray-900">
-              {message.sender?.name}
-            </span>
-            {showTimestamp && (
-              <span className="text-xs text-gray-500">
-                {formatTime(message.createdAt)}
-              </span>
+        <div
+          className={clsx(
+            'rounded-2xl px-3 py-2 text-sm shadow-sm',
+            own ? 'rounded-br-md bg-bubble-own' : 'rounded-bl-md bg-bubble',
+            muted && 'italic text-muted',
+          )}
+        >
+          {replyTarget && (
+            <blockquote className="mb-1 border-l-2 border-accent/60 pl-2 text-xs text-muted">
+              <span className="font-medium">{displayNameOf(users, replyTarget.senderId)}: </span>
+              {replyTarget.kind === 'encrypted' ? (replyPlain ?? '🔒') : (replyTarget.text ?? '')}
+            </blockquote>
+          )}
+          <p className="whitespace-pre-wrap break-words">{text}</p>
+          <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted">
+            {message.editedAt && <span>edited</span>}
+            <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+            {own && <ReceiptTicks level={receiptLevel(conversation, message.seq, myUserId)} />}
+          </span>
+        </div>
+        {message.reactions.length > 0 && (
+          <ul className={clsx('mt-1 flex flex-wrap gap-1', own && 'justify-end')}>
+            {message.reactions.map((r) => (
+              <li key={r.emoji}>
+                <button
+                  type="button"
+                  className={clsx(
+                    'rounded-full border px-1.5 py-0.5 text-xs',
+                    r.userIds.includes(myUserId) ? 'border-accent bg-accent/15' : 'border-border bg-surface',
+                  )}
+                  onClick={() => void toggleReaction(message, r.emoji)}
+                  title={r.userIds.map((id) => displayNameOf(users, id)).join(', ')}
+                >
+                  {r.emoji} {r.userIds.length}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!message.deletedAt && (
+          <div
+            className={clsx(
+              'absolute -top-3 flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 opacity-0 shadow-sm transition focus-within:opacity-100 group-hover:opacity-100',
+              own ? 'left-0' : 'right-0',
+            )}
+          >
+            <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setPickerOpen((o) => !o)} aria-label="React">
+              <SmilePlus size={14} />
+            </button>
+            <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setReplyTo(message.conversationId, message.id)} aria-label="Reply">
+              <CornerUpLeft size={14} />
+            </button>
+            {own && (message.kind !== 'encrypted' || plaintext !== undefined) && (
+              <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setEditing(message.conversationId, message.id)} aria-label="Edit">
+                <Pencil size={14} />
+              </button>
+            )}
+            {own && (
+              <button type="button" className="rounded-full p-1 text-danger hover:bg-surface-2" onClick={() => void deleteMessage(message)} aria-label="Delete">
+                <Trash2 size={14} />
+              </button>
             )}
           </div>
         )}
-
-        {/* Message body */}
-        <div className={`relative ${isOwn ? 'ml-12' : 'mr-12'}`}>
-          {isEditing ? (
-            <div className="space-y-2">
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg resize-none"
-                rows={2}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleEdit();
-                  }
-                  if (e.key === 'Escape') {
-                    setIsEditing(false);
-                    setEditContent(message.content);
-                  }
+        {pickerOpen && (
+          <div className={clsx('absolute z-10 mt-1 flex gap-1 rounded-full border border-border bg-surface px-2 py-1 shadow-lg', own ? 'right-0' : 'left-0')} role="menu">
+            {QUICK_EMOJI.map((e) => (
+              <button
+                key={e}
+                type="button"
+                className="rounded-full p-1 text-base hover:bg-surface-2"
+                onClick={() => {
+                  setPickerOpen(false);
+                  void toggleReaction(message, e);
                 }}
-              />
-              <div className="flex gap-2 text-xs">
-                <button
-                  onClick={handleEdit}
-                  className="text-blue-600 hover:underline"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditContent(message.content);
-                  }}
-                  className="text-gray-600 hover:underline"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={`inline-block max-w-full px-3 py-2 rounded-lg ${
-              isOwn
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-900'
-            }`}>
-              <p className="whitespace-pre-wrap break-words text-sm">
-                {message.content}
-              </p>
-
-              {message.isEdited && (
-                <span className={`text-xs opacity-75 ${
-                  isOwn ? 'text-blue-200' : 'text-gray-500'
-                }`}>
-                  (edited)
-                </span>
-              )}
-
-              {message.attachments && message.attachments.length > 0 && (
-                <MessageAttachments attachments={message.attachments} />
-              )}
-            </div>
-          )}
-
-          {/* Message actions */}
-          {!isEditing && (
-            <div className={`absolute top-0 ${
-              isOwn ? 'left-0 -translate-x-8' : 'right-0 translate-x-8'
-            } opacity-0 group-hover:opacity-100 transition-opacity`}>
-              <div className="relative">
-                <button
-                  onClick={() => setShowMenu(!showMenu)}
-                  className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-
-                {showMenu && (
-                  <div className={`absolute top-full mt-1 ${
-                    isOwn ? 'right-0' : 'left-0'
-                  } bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10`}>
-                    <button
-                      onClick={() => {
-                        // TODO: Implement reply
-                        setShowMenu(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <Reply className="w-4 h-4" />
-                      Reply
-                    </button>
-
-                    <button
-                      onClick={handleCopy}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </button>
-
-                    {isOwn && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setIsEditing(true);
-                            setShowMenu(false);
-                          }}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            handleDelete();
-                            setShowMenu(false);
-                          }}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Timestamp for single messages */}
-        {!showAvatar && showTimestamp && (
-          <div className={`text-xs text-gray-500 mt-1 ${
-            isOwn ? 'text-right' : 'text-left'
-          }`}>
-            {formatTime(message.createdAt)}
+              >
+                {e}
+              </button>
+            ))}
           </div>
         )}
       </div>
-    </div>
+    </li>
   );
 }

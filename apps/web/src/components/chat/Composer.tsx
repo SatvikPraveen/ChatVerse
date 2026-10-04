@@ -1,201 +1,133 @@
-// apps/web/src/components/chat/Composer.tsx
-import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image, Smile } from 'lucide-react';
-import { useSocket } from '../../app/providers/SocketProvider';
-import { useUpload } from '../../hooks/useUpload';
-import EmojiPicker from '../common/EmojiPicker';
-import AttachmentPreview from '../upload/AttachmentPreview';
-import Button from '../common/Button';
+import type { Conversation } from '@chatverse/protocol';
+import { LIMITS } from '@chatverse/protocol';
+import { Send, X } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { editMessage, sendText, setTyping } from '@/lib/messaging';
+import { useMessagesStore } from '@/stores/messages';
+import { useUiStore } from '@/stores/ui';
+import { displayNameOf, useUsersStore } from '@/stores/users';
 
-interface ComposerProps {
-  conversationId: string;
-  placeholder?: string;
-}
+export function Composer({ conversation }: { conversation: Conversation }) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const typingStop = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replyToId = useUiStore((s) => s.replyTo[conversation.id] ?? null);
+  const editingId = useUiStore((s) => s.editing[conversation.id] ?? null);
+  const setReplyTo = useUiStore((s) => s.setReplyTo);
+  const setEditing = useUiStore((s) => s.setEditing);
+  const toast = useUiStore((s) => s.toast);
+  const users = useUsersStore((s) => s.byId);
+  const replyTarget = useMessagesStore((s) => (replyToId ? s.conversations[conversation.id]?.byId[replyToId] : undefined));
+  const editTarget = useMessagesStore((s) => (editingId ? s.conversations[conversation.id]?.byId[editingId] : undefined));
+  const editPlain = useMessagesStore((s) => (editingId ? s.plaintext[editingId] : undefined));
 
-export default function Composer({ conversationId, placeholder = "Type a message..." }: ComposerProps) {
-  const [content, setContent] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
-
-  const { sendMessage, startTyping, stopTyping } = useSocket();
-  const { uploadFiles, isUploading } = useUpload();
-
-  // Auto-resize textarea
+  // Entering edit mode loads the current text into the box.
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    if (editTarget) {
+      setValue(editTarget.kind === 'encrypted' ? (editPlain ?? '') : (editTarget.text ?? ''));
+      textarea.current?.focus();
     }
-  }, [content]);
+  }, [editTarget, editPlain]);
 
-  // Typing indicator logic
-  const handleTyping = () => {
-    startTyping(conversationId);
+  useEffect(() => {
+    textarea.current?.focus();
+    return () => {
+      if (typingStop.current) clearTimeout(typingStop.current);
+    };
+  }, [conversation.id]);
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
+  function onChange(next: string) {
+    setValue(next);
+    if (!editTarget) {
+      setTyping(conversation.id, next.length > 0);
+      if (typingStop.current) clearTimeout(typingStop.current);
+      typingStop.current = setTimeout(() => setTyping(conversation.id, false), 3_000);
     }
+    const el = textarea.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    }
+  }
 
-    typingTimeoutRef.current = setTimeout(() => {
-      stopTyping(conversationId);
-    }, 1000);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const trimmedContent = content.trim();
-    if (!trimmedContent && attachments.length === 0) return;
-
+  async function submit() {
+    const text = value.trim();
+    if (!text || busy) return;
+    setBusy(true);
     try {
-      let uploadedAttachments: any[] = [];
-
-      if (attachments.length > 0) {
-        uploadedAttachments = await uploadFiles(attachments);
+      if (editTarget) {
+        await editMessage(editTarget, text);
+        setEditing(conversation.id, null);
+      } else {
+        setTyping(conversation.id, false);
+        await sendText(conversation.id, text, replyToId);
+        setReplyTo(conversation.id, null);
       }
-
-      sendMessage(conversationId, trimmedContent, uploadedAttachments);
-
-      setContent('');
-      setAttachments([]);
-      stopTyping(conversationId);
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    } catch (error) {
-      console.error('Failed to send message:', error);
+      setValue('');
+      if (textarea.current) textarea.current.style.height = 'auto';
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Could not send');
+    } finally {
+      setBusy(false);
+      textarea.current?.focus();
     }
-  };
+  }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      void submit();
+    } else if (e.key === 'Escape') {
+      setEditing(conversation.id, null);
+      setReplyTo(conversation.id, null);
+      if (editTarget) setValue('');
     }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setAttachments(prev => [...prev, ...files]);
-    e.target.value = '';
-  };
-
-  const handleRemoveAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setContent(prev => prev + emoji);
-    setShowEmojiPicker(false);
-    textareaRef.current?.focus();
-  };
-
-  const isDisabled = isUploading;
-  const hasContent = content.trim() || attachments.length > 0;
+  }
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
-      {/* Attachment previews */}
-      {attachments.length > 0 && (
-        <div className="mb-3">
-          <AttachmentPreview
-            files={attachments}
-            onRemove={handleRemoveAttachment}
-          />
+    <form
+      className="border-t border-border bg-surface px-3 py-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      {(replyTarget || editTarget) && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-xs">
+          <span className="truncate text-muted">
+            {editTarget ? 'Editing message' : `Replying to ${displayNameOf(users, replyTarget!.senderId)}`}
+          </span>
+          <button
+            type="button"
+            className="ml-auto text-muted hover:text-text"
+            aria-label="Cancel"
+            onClick={() => {
+              setEditing(conversation.id, null);
+              setReplyTo(conversation.id, null);
+              if (editTarget) setValue('');
+            }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
-
-      {/* Main composer */}
-      <div className="flex items-end gap-3">
-        {/* File attachment button */}
-        <div className="flex-shrink-0">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
-          />
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isDisabled}
-            className="p-2"
-          >
-            <Paperclip className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Text input area */}
-        <form onSubmit={handleSubmit} className="flex-1">
-          <div className="flex items-end bg-gray-50 rounded-lg border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value);
-                handleTyping();
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={isDisabled}
-              className="flex-1 bg-transparent border-0 resize-none px-3 py-2 focus:outline-none text-sm max-h-32 min-h-10"
-              rows={1}
-            />
-
-            {/* Emoji picker button */}
-            <div className="relative">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                disabled={isDisabled}
-                className="p-2 m-1"
-              >
-                <Smile className="w-5 h-5" />
-              </Button>
-
-              {showEmojiPicker && (
-                <div className="absolute bottom-full right-0 mb-2">
-                  <EmojiPicker
-                    onSelect={handleEmojiSelect}
-                    onClose={() => setShowEmojiPicker(false)}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </form>
-
-        {/* Send button */}
-        <div className="flex-shrink-0">
-          <Button
-            onClick={handleSubmit}
-            disabled={!hasContent || isDisabled}
-            isLoading={isUploading}
-            variant="primary"
-            size="sm"
-            className="p-2"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
-        </div>
+      <div className="flex items-end gap-2">
+        <textarea
+          ref={textarea}
+          rows={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          maxLength={LIMITS.MESSAGE_TEXT_MAX}
+          placeholder={conversation.encrypted ? 'Encrypted message… (Enter to send, Shift+Enter for a new line)' : 'Message… (Enter to send)'}
+          aria-label="Message"
+          className="input max-h-40 resize-none"
+        />
+        <button type="submit" className="btn-primary h-10 w-10 shrink-0 p-0" disabled={!value.trim() || busy} aria-label={editTarget ? 'Save' : 'Send'}>
+          <Send size={18} />
+        </button>
       </div>
-
-      {/* Helper text */}
-      <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-        <span>Press Enter to send, Shift+Enter for new line</span>
-        {isUploading && <span>Uploading files...</span>}
-      </div>
-    </div>
+    </form>
   );
 }

@@ -18,6 +18,11 @@ export const SUITES = {
 export interface PairwiseEnvelopeHeader {
   /** Recipient device id so multi-device recipients know which session to use. */
   to: string;
+  /**
+   * Sender device id. Unauthenticated routing metadata (like `to`); a responder uses it to
+   * address replies to the right device of a multi-device peer.
+   */
+  from?: string;
   /** Present only on the first message of a session (X3DH initial message). */
   x3dh?: { ik: string; ek: string; spk: number; opk: number | null };
 }
