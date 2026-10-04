@@ -1,0 +1,34 @@
+{
+  "name": "@chatverse/protocol",
+  "version": "2.0.0",
+  "description": "ChatVerse wire protocol: domain models, typed Socket.IO event maps, REST contracts, zod schemas and the hybrid logical clock shared by server and clients",
+  "license": "MIT",
+  "author": "Satvik Praveen <satvikpraveen707@gmail.com>",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts --max-warnings 0",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@chatverse/eslint-config": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitest/coverage-v8": "^2.1.1",
+    "eslint": "^8.57.0",
+    "fast-check": "^3.22.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

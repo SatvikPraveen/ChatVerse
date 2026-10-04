@@ -1,41 +1,41 @@
 {
   "name": "chatverse",
-  "version": "1.0.0",
-  "description": "Real-time chat application with PWA support",
+  "version": "2.0.0",
+  "description": "ChatVerse: a research-grade, end-to-end encrypted real-time messaging platform with ordered delivery, resumable sync and reproducible benchmarks",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "license": "MIT",
+  "author": "Satvik Praveen <satvikpraveen707@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SatvikPraveen/ChatVerse.git"
+  },
   "scripts": {
-    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
-    "dev:api": "pnpm --filter=api dev",
-    "dev:web": "pnpm --filter=web dev",
-    "build": "pnpm --filter=api build && pnpm --filter=web build",
-    "build:api": "pnpm --filter=api build",
-    "build:web": "pnpm --filter=web build",
-    "lint": "pnpm --filter=* lint",
-    "lint:fix": "pnpm --filter=* lint:fix",
-    "type-check": "pnpm --filter=* type-check",
-    "test": "pnpm --filter=* test",
-    "test:e2e": "pnpm --filter=api test:e2e",
-    "clean": "pnpm --filter=* clean && rm -rf node_modules",
-    "docker:dev": "docker-compose -f infra/docker/docker-compose.dev.yml up --build",
-    "docker:down": "docker-compose -f infra/docker/docker-compose.dev.yml down",
-    "seed": "node scripts/seed.mjs",
-    "migrate": "node scripts/migrate.mjs"
+    "dev": "concurrently -n api,web -c blue,magenta \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:api": "pnpm --filter @chatverse/api dev",
+    "dev:web": "pnpm --filter @chatverse/web dev",
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "lint": "pnpm -r lint",
+    "type-check": "pnpm -r type-check",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "bench": "pnpm --filter @chatverse/bench run bench",
+    "docker:dev": "docker compose -f infra/docker/docker-compose.dev.yml up --build",
+    "docker:down": "docker compose -f infra/docker/docker-compose.dev.yml down",
+    "seed": "pnpm --filter @chatverse/api seed",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\""
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "concurrently": "^8.2.2",
     "eslint": "^8.57.0",
-    "prettier": "^3.2.5",
-    "typescript": "^5.3.3"
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@8.15.4"
+  "packageManager": "pnpm@9.12.3"
 }

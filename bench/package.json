@@ -1,0 +1,31 @@
+{
+  "name": "@chatverse/bench",
+  "version": "2.0.0",
+  "description": "Reproducible load-testing and latency benchmarks for the ChatVerse server",
+  "license": "MIT",
+  "author": "Satvik Praveen <satvikpraveen707@gmail.com>",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "tsx src/run.ts",
+    "report": "tsx src/report.ts",
+    "lint": "eslint src --ext .ts --max-warnings 0",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"no unit tests for bench\""
+  },
+  "dependencies": {
+    "@chatverse/protocol": "workspace:*",
+    "autocannon": "^7.15.0",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "@chatverse/eslint-config": "workspace:*",
+    "@types/autocannon": "^7.12.5",
+    "@types/node": "^20.16.5",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  }
+}
