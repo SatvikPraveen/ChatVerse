@@ -82,6 +82,7 @@ Everything else:
 
 ```bash
 pnpm test            # protocol, crypto, api (mongodb-memory-server + ioredis-mock), web — no services needed
+pnpm test:e2e        # Playwright: real browsers against the real API and web client (needs MongoDB)
 pnpm lint && pnpm type-check && pnpm build
 pnpm docker:dev      # full stack incl. MinIO, Prometheus, Grafana (:3002)
 docker compose -f infra/docker/docker-compose.bench.yml up -d --wait   # two API nodes behind nginx
@@ -126,16 +127,18 @@ visible metadata and the single-device assumption of the web client, are stated 
 
 ## Testing
 
-| Suite               | Tests | Highlights                                                                                                                             |
-| ------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/protocol` | 13    | HLC monotonicity and causality as fast-check properties                                                                                |
-| `packages/crypto`   | 23    | reordering, loss, replay, tampering, persistence, post-compromise security, forged bundles                                             |
-| `apps/api`          | 47    | token rotation/reuse, idempotent resend, dense seq under 50 concurrent sends, realtime fan-out, rate limits, lock and queue primitives |
-| `apps/web`          | 25    | refresh-and-retry, gap detection, outbox, E2EE between simulated devices, optimistic store                                             |
+| Suite               | Tests | Highlights                                                                                                                                            |
+| ------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/protocol` | 13    | HLC monotonicity and causality as fast-check properties                                                                                               |
+| `packages/crypto`   | 23    | reordering, loss, replay, tampering, persistence, post-compromise security, forged bundles                                                            |
+| `apps/api`          | 47    | token rotation/reuse, idempotent resend, dense seq under 50 concurrent sends, realtime fan-out, rate limits, lock and queue primitives                |
+| `apps/web`          | 25    | refresh-and-retry, gap detection, outbox, E2EE between simulated devices, optimistic store                                                            |
+| `e2e` (Playwright)  | 4     | real browsers, server and crypto: auth, encrypted direct chat with matching safety numbers, encrypted group with removal, offline catch-up and outbox |
 
-All suites run without external services. CI runs lint, format check, type check, tests with
-coverage, build and a Docker build on every push; CodeQL and `pnpm audit` run in a separate
-workflow.
+The unit and integration suites run without external services. The browser suite needs only a
+MongoDB (`pnpm test:e2e`, see [e2e/README.md](./e2e/README.md)). CI runs lint, format check,
+type check, tests with coverage, build, the browser suite and a Docker build on every push;
+CodeQL and `pnpm audit` run in a separate workflow.
 
 ## Documentation map
 

@@ -27,8 +27,10 @@ send lock (two Redis commands per message). Measured two-node numbers are in the
 
 ## When Redis becomes the bottleneck
 
-- Move Socket.IO adapter traffic to a dedicated Redis (`REDIS_URL` for coordination, a second
-  URL for the adapter is a small code change in `realtime/gateway.ts`).
+- Move Socket.IO adapter traffic to a dedicated Redis: set `REDIS_ADAPTER_URL` on every node.
+  `REDIS_URL` keeps the coordination keys (sequencing, locks, presence, rate limits) and the
+  adapter's pub/sub fan-out moves to the second instance. Nodes log
+  `socket.io adapter on dedicated redis` at startup when it is active.
 - Use Redis Cluster for coordination keys; all keys are prefixed per conversation or user, so
   they hash well. The adapter supports sharded pub/sub (`@socket.io/redis-adapter` ≥ 8.3).
 
@@ -41,9 +43,12 @@ send lock (two Redis commands per message). Measured two-node numbers are in the
 
 ## Large groups
 
-Fan-out cost is O(members) per message. Groups up to `LIMITS.GROUP_PARTICIPANTS_MAX` (512)
-are supported; for larger audiences introduce a "broadcast" conversation kind that stores one
-copy and lets clients pull, instead of pushing to every socket.
+Fan-out cost is O(members) per message. Measured on one node at constant delivery throughput
+(docs/EVALUATION.md §3.6): median latency is flat at 2–3 ms up to 50 members and rises to 16 ms
+(p99 359 ms) at 200, because one hot conversation serialises all its sends through the ordered
+section. Groups up to `LIMITS.GROUP_PARTICIPANTS_MAX` (512) are supported; for larger audiences
+introduce a "broadcast" conversation kind that stores one copy and lets clients pull, instead
+of pushing to every socket.
 
 ## Load testing
 

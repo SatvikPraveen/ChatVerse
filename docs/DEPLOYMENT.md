@@ -82,6 +82,7 @@ important ones for production:
 | Variable                                  | Notes                                                             |
 | ----------------------------------------- | ----------------------------------------------------------------- |
 | `MONGODB_URI`, `REDIS_URL`                | Required; Redis must be shared by all nodes                       |
+| `REDIS_ADAPTER_URL`                       | Optional; a second Redis that carries only Socket.IO fan-out      |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | ≥ 32 random characters each, distinct                             |
 | `CORS_ORIGINS`                            | Comma-separated browser origins                                   |
 | `TRUST_PROXY`                             | `true` behind a load balancer so rate limits key on the client IP |

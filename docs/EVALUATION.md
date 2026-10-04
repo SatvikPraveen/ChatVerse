@@ -121,6 +121,28 @@ removed all reordering but also improved the tail (p90 161 → 15 ms), because s
 conversation's sends across nodes prevents the two nodes from interleaving their MongoDB
 inserts for the same hot conversation.
 
+### 3.6 Group size
+
+To isolate the effect of group size, the sweep holds the population (200 users) and the
+delivery throughput (4,000 deliveries/s) constant and varies only how wide each message fans
+out: larger groups mean fewer, wider messages. Native single node, MongoDB 7 and Redis 7 in
+Docker.
+
+| Group size | Groups | Sender rate | msg/s | Delivered | Ordering violations | e2e p50 | p95    | p99    | ack p50 |
+| ---------- | ------ | ----------- | ----- | --------- | ------------------- | ------- | ------ | ------ | ------- |
+| 10         | 20     | 2 /s        | 400   | 100 %     | 0                   | 2 ms    | 7 ms   | 78 ms  | 3 ms    |
+| 50         | 4      | 0.4 /s      | 80    | 100 %     | 0                   | 3 ms    | 14 ms  | 42 ms  | 5 ms    |
+| 200        | 1      | 0.1 /s      | 20    | 100 %     | 0                   | 16 ms   | 133 ms | 359 ms | 21 ms   |
+
+Up to 50 members the cost is flat: the median stays at 2–3 ms. At 200 members the median rises
+to 16 ms and the tail to 359 ms even though the server handles 20× fewer messages than at size 10. Two effects stack: all 200 senders share one conversation, so the ordered send section
+serialises every send in the system behind a single queue; and each emit serialises one frame
+for 200 sockets in one synchronous burst, which shows as event-loop stalls in the tail. Groups
+of hundreds therefore need either a per-conversation pipeline that admits several in-flight
+inserts while still emitting in order, or the "broadcast" conversation kind sketched in the
+scaling runbook. The machine was also running unrelated build jobs during part of this sweep,
+so the 200-member tail is an upper bound.
+
 ## 4. What the benchmark found and changed
 
 The harness was built to exit non-zero on correctness failures, and it did so on the first run.
@@ -145,6 +167,23 @@ Redis `SET NX PX` lock per conversation (`DistributedLock`) nested inside the lo
 only when nodes share a Redis. Violations dropped to 0 at a cost of two Redis commands per send.
 The protocol text was updated to state exactly what clients may rely on (`PROTOCOL.md` §3.1).
 
+**Finding 4 (negative result): batching the conversation bookkeeping write does not help.**
+After each send the server updates the conversation's `headSeq` and `lastMessage`. Saturation
+analysis suggested these per-send writes as a bottleneck, so a per-conversation write coalescer
+was built and instrumented with a "merged" counter. Across the full sweep and a saturation run
+(over 45,000 sends) it merged 2 writes. The reason is structural: the ordered send section
+already serialises each conversation's sends, so one conversation's bookkeeping writes are
+naturally sequential and almost never overlap. The coalescer was removed rather than kept as
+untriggered complexity. The real lever for a hot conversation is the ordered section itself
+(§3.6).
+
+**Finding 5 (browser tests): an interrupted conversation load was never resumed.** The
+Playwright reconnect test failed 6 runs in 8. Frame captures showed that when the network
+dropped between a conversation's first live message and the end of its initial history request,
+the client never registered the conversation for sync, so reconnect neither re-joined it nor
+caught it up. Interrupted loads are now retried on every reconnect; the suite passed 16 of 16
+consecutive runs afterwards.
+
 ## 5. Threats to validity
 
 - The load generator shares the machine with the server, which inflates tail latencies and
@@ -154,8 +193,7 @@ The protocol text was updated to state exactly what clients may rely on (`PROTOC
   latency that a Linux host would not.
 - Each configuration was run once after a warm-up run; the methodology recommends three runs
   and medians for publication-quality numbers.
-- Group size is fixed at 10. Fan-out cost grows linearly with group size; larger groups were
-  not measured.
+- Group size was swept only up to 200 members, on a single node and with one run per point.
 - Encrypted conversations were not benchmarked separately. The server treats ciphertext as an
   opaque string of similar size, so throughput is expected to be unchanged; client-side
   ratchet cost is not covered here.

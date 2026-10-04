@@ -81,14 +81,14 @@ and without the cluster lock.
 
 ### Coordination through Redis
 
-| Concern          | Keys                                                                                  | Notes                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Sequence numbers | `conv:{id}:seq`                                                                       | `INCR`; seeded with `SET NX` from `Conversation.headSeq`; Mongo `$inc` fallback |
-| Send ordering    | `lock:conv:{id}`                                                                      | `SET NX PX` + Lua compare-and-delete; only when Redis is shared                 |
-| Presence         | `presence:{uid}` hash, `presence:{uid}:sockets`, `presence:{uid}:hb:{sid}` (TTL 45 s) | A user is online while any heartbeat key exists                                 |
-| Rate limits      | `rl:{scope}:{id}:{window}`                                                            | Fixed window; memory fallback                                                   |
-| Refresh sessions | `sess:*`                                                                              | Token family with rotation and reuse detection                                  |
-| Fan-out          | Socket.IO adapter channels                                                            | `io.in(room).emit`, `socketsJoin/Leave` across nodes                            |
+| Concern          | Keys                                                                                  | Notes                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Sequence numbers | `conv:{id}:seq`                                                                       | `INCR`; seeded with `SET NX` from `Conversation.headSeq`; Mongo `$inc` fallback               |
+| Send ordering    | `lock:conv:{id}`                                                                      | `SET NX PX` + Lua compare-and-delete; only when Redis is shared                               |
+| Presence         | `presence:{uid}` hash, `presence:{uid}:sockets`, `presence:{uid}:hb:{sid}` (TTL 45 s) | A user is online while any heartbeat key exists                                               |
+| Rate limits      | `rl:{scope}:{id}:{window}`                                                            | Fixed window; memory fallback                                                                 |
+| Refresh sessions | `sess:*`                                                                              | Token family with rotation and reuse detection                                                |
+| Fan-out          | Socket.IO adapter channels                                                            | `io.in(room).emit`, `socketsJoin/Leave` across nodes; dedicated Redis via `REDIS_ADAPTER_URL` |
 
 When `REDIS_URL` is unset in development or test the same code runs against an in-process
 emulator (`ioredis-mock`); production refuses to start without a real Redis.
