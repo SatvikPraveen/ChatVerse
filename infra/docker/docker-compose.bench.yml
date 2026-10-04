@@ -1,0 +1,106 @@
+# Two API nodes behind an nginx load balancer, sharing Mongo and Redis.
+# Demonstrates cross-node fan-out through the Socket.IO Redis adapter: a message sent to
+# api-1 reaches participants connected to api-2.
+#
+#   docker compose -f infra/docker/docker-compose.bench.yml up --build -d
+#   pnpm bench -- --scenario fanout --url http://localhost:4000 --users 200 --groups 20
+#   docker compose -f infra/docker/docker-compose.bench.yml down -v
+#
+# Ports: load balancer 4000, api-1 4001, api-2 4002, prometheus 9090
+
+name: chatverse-bench
+
+x-api: &api
+  build:
+    context: ../..
+    dockerfile: infra/docker/api.Dockerfile
+  restart: unless-stopped
+  environment: &api-env
+    NODE_ENV: production
+    HOST: 0.0.0.0
+    PORT: 4000
+    MONGODB_URI: mongodb://mongo:27017/chatverse_bench
+    REDIS_URL: redis://redis:6379/0
+    JWT_ACCESS_SECRET: bench-access-secret-not-for-production-0123456789
+    JWT_REFRESH_SECRET: bench-refresh-secret-not-for-production-0123456789
+    ACCESS_TOKEN_TTL_SEC: 3600
+    REFRESH_TOKEN_TTL_SEC: 86400
+    CORS_ORIGINS: http://localhost:4000
+    LOG_LEVEL: warn
+    TRUST_PROXY: '1'
+    # Bench clients legitimately exceed normal per-IP limits: they all come from one host.
+    RATE_LIMIT_WINDOW_SEC: 60
+    RATE_LIMIT_MAX: 100000
+    METRICS_ENABLED: 'true'
+    MESSAGE_RETENTION_DAYS: 1
+  depends_on:
+    mongo:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  healthcheck:
+    test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:4000/health/ready']
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 20s
+
+services:
+  mongo:
+    image: mongo:7
+    command: ['mongod', '--wiredTigerCacheSizeGB', '1']
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-1:
+    <<: *api
+    environment:
+      <<: *api-env
+      NODE_ID: api-1
+    ports:
+      - '4001:4000'
+
+  api-2:
+    <<: *api
+    environment:
+      <<: *api-env
+      NODE_ID: api-2
+    ports:
+      - '4002:4000'
+
+  lb:
+    image: nginx:1.27-alpine
+    ports:
+      - '4000:80'
+    volumes:
+      - ./nginx.lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api-1:
+        condition: service_healthy
+      api-2:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command: ['--config.file=/etc/prometheus/prometheus.yml']
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.bench.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api-1
+      - api-2

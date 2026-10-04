@@ -1,109 +1,40 @@
-#!/bin/bash
-# File: scripts/dev.sh
+#!/usr/bin/env bash
+# Start the local dependencies (MongoDB, Redis, MinIO) in Docker and run the API and web app
+# on the host with hot reload.
+#
+#   ./scripts/dev.sh            # deps + pnpm dev
+#   ./scripts/dev.sh --deps     # deps only
+#   ./scripts/dev.sh --down     # stop and remove the dependency containers
 
-set -e
+set -euo pipefail
+cd "$(dirname "$0")/.."
 
-echo "🚀 Starting ChatVerse Development Environment"
+COMPOSE=(docker compose -f infra/docker/docker-compose.dev.yml)
+DEPS=(mongo redis minio minio-init)
 
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo "❌ Docker is not running. Please start Docker first."
-    exit 1
+if [[ "${1:-}" == "--down" ]]; then
+  "${COMPOSE[@]}" down
+  exit 0
 fi
 
-# Check if pnpm is installed
-if ! command -v pnpm &> /dev/null; then
-    echo "❌ pnpm is not installed. Please install pnpm first."
-    echo "Run: npm install -g pnpm"
-    exit 1
-fi
+command -v docker >/dev/null || { echo "docker is required" >&2; exit 1; }
+docker info >/dev/null 2>&1 || { echo "docker daemon is not running" >&2; exit 1; }
+command -v pnpm >/dev/null || { echo "pnpm is required (corepack enable)" >&2; exit 1; }
 
-# Create .env files if they don't exist
-echo "📝 Setting up environment files..."
+[[ -f .env ]] || { cp .env.example .env; echo "created .env from .env.example"; }
+[[ -f apps/api/.env ]] || { cp apps/api/.env.example apps/api/.env 2>/dev/null && echo "created apps/api/.env" || true; }
+[[ -f apps/web/.env ]] || { cp apps/web/.env.example apps/web/.env 2>/dev/null && echo "created apps/web/.env" || true; }
 
-if [ ! -f .env ]; then
-    cp .env.example .env
-    echo "✅ Created root .env file"
-fi
+echo "starting dependencies: ${DEPS[*]}"
+"${COMPOSE[@]}" up -d --wait "${DEPS[@]}"
 
-if [ ! -f apps/api/.env ]; then
-    cp apps/api/.env.example apps/api/.env
-    echo "✅ Created API .env file"
-fi
+echo
+echo "  MongoDB  mongodb://chatverse:chatverse123@localhost:27017/chatverse?authSource=admin"
+echo "  Redis    redis://:chatverse123@localhost:6379/0"
+echo "  MinIO    http://localhost:9001 (chatverse / chatverse123)"
+echo
 
-if [ ! -f apps/web/.env ]; then
-    cp apps/web/.env.example apps/web/.env
-    echo "✅ Created Web .env file"
-fi
+[[ "${1:-}" == "--deps" ]] && exit 0
 
-# Install dependencies
-echo "📦 Installing dependencies..."
 pnpm install
-
-# Build shared packages
-echo "🔨 Building shared packages..."
-pnpm build:packages
-
-# Start Docker services
-echo "🐳 Starting Docker services..."
-docker-compose -f infra/docker/docker-compose.dev.yml up -d mongo redis minio minio-setup
-
-# Wait for services to be ready
-echo "⏳ Waiting for services to be ready..."
-sleep 10
-
-# Check if MongoDB is ready
-echo "🔍 Checking MongoDB connection..."
-until docker-compose -f infra/docker/docker-compose.dev.yml exec mongo mongosh --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
-    echo "Waiting for MongoDB..."
-    sleep 2
-done
-echo "✅ MongoDB is ready"
-
-# Check if Redis is ready
-echo "🔍 Checking Redis connection..."
-until docker-compose -f infra/docker/docker-compose.dev.yml exec redis redis-cli -a chatverse123 ping > /dev/null 2>&1; do
-    echo "Waiting for Redis..."
-    sleep 2
-done
-echo "✅ Redis is ready"
-
-# Check if MinIO is ready
-echo "🔍 Checking MinIO connection..."
-until curl -f http://localhost:9000/minio/health/live > /dev/null 2>&1; do
-    echo "Waiting for MinIO..."
-    sleep 2
-done
-echo "✅ MinIO is ready"
-
-# Run database migrations and seed data
-echo "📊 Running database setup..."
-node scripts/migrate.mjs
-node scripts/seed.mjs
-
-# Start the development servers
-echo "🚀 Starting development servers..."
-echo ""
-echo "🌐 Services will be available at:"
-echo "  - Web App: http://localhost:3000"
-echo "  - API: http://localhost:3001"
-echo "  - MinIO Console: http://localhost:9001 (chatverse/chatverse123)"
-echo "  - MongoDB: mongodb://localhost:27017"
-echo "  - Redis: redis://localhost:6379"
-echo ""
-echo "📝 Logs will be shown below..."
-echo ""
-
-# Start API and Web in development mode
-docker-compose -f infra/docker/docker-compose.dev.yml up api web
-
-# Cleanup function
-cleanup() {
-    echo ""
-    echo "🛑 Shutting down development environment..."
-    docker-compose -f infra/docker/docker-compose.dev.yml down
-    echo "✅ Development environment stopped"
-}
-
-# Set trap to cleanup on exit
-trap cleanup EXIT
+exec pnpm dev

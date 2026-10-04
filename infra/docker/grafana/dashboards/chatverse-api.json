@@ -1,0 +1,190 @@
+{
+  "uid": "chatverse-api",
+  "title": "ChatVerse API",
+  "tags": ["chatverse"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+        "query": "label_values(socket_connections, node_id)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Open socket connections",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        { "expr": "sum(socket_connections{node_id=~\"$node\"})", "legendFormat": "sockets" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Messages / s",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(messages_sent_total{node_id=~\"$node\"}[1m]))",
+          "legendFormat": "msg/s"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "decimals": 1 } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "HTTP p99 latency",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Process RSS",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        { "expr": "sum(process_resident_memory_bytes{node_id=~\"$node\"})", "legendFormat": "rss" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP request latency (quantiles)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "HTTP requests / s by route and status",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (route, status_code) (rate(http_request_duration_seconds_count{node_id=~\"$node\"}[1m]))",
+          "legendFormat": "{{route}} {{status_code}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Message fan-out duration (quantiles)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(message_fanout_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(message_fanout_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(message_fanout_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Socket event handler duration p95 by event",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, event) (rate(socket_event_duration_seconds_bucket{node_id=~\"$node\"}[1m])))",
+          "legendFormat": "{{event}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Socket connections by node",
+      "gridPos": { "x": 0, "y": 20, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        { "expr": "socket_connections{node_id=~\"$node\"}", "legendFormat": "{{node_id}}" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Messages sent / s by node",
+      "gridPos": { "x": 8, "y": 20, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (node_id) (rate(messages_sent_total{node_id=~\"$node\"}[1m]))",
+          "legendFormat": "{{node_id}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Event loop lag p99 / CPU",
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "chatverse-prometheus" },
+      "targets": [
+        {
+          "expr": "nodejs_eventloop_lag_p99_seconds{node_id=~\"$node\"}",
+          "legendFormat": "loop lag p99 {{node_id}}"
+        },
+        {
+          "expr": "rate(process_cpu_seconds_total{node_id=~\"$node\"}[1m])",
+          "legendFormat": "cpu {{node_id}}"
+        }
+      ]
+    }
+  ]
+}

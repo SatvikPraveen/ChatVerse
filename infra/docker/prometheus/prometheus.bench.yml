@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 2s
+
+scrape_configs:
+  - job_name: chatverse-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api-1:4000']
+        labels:
+          node_id: api-1
+      - targets: ['api-2:4000']
+        labels:
+          node_id: api-2

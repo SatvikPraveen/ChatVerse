@@ -1,80 +1,57 @@
-# File: infra/docker/api.Dockerfile
+# syntax=docker/dockerfile:1.7
+# ChatVerse API image. Build from the repository root:
+#   docker build -f infra/docker/api.Dockerfile -t chatverse-api .
 
-FROM node:20-alpine AS base
+# ---------------------------------------------------------------------------
+# 1. Install the full workspace (dev deps included) and build the API bundle.
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+RUN corepack enable && corepack prepare pnpm@9.12.3 --activate
+WORKDIR /repo
 
-# Install pnpm
-RUN npm install -g pnpm
+# Copy manifests first so dependency installation is cached across source changes.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/protocol/package.json packages/protocol/
+COPY packages/crypto/package.json packages/crypto/
+COPY packages/eslint-config/package.json packages/eslint-config/
+COPY bench/package.json bench/
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
+COPY packages ./packages
+COPY apps/api ./apps/api
+RUN pnpm --filter @chatverse/api build
+
+# `pnpm deploy` writes an isolated copy of the API with only its production dependencies,
+# which keeps the runtime image free of the workspace, TypeScript and test tooling.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm --filter @chatverse/api deploy --prod /out && cp -r apps/api/dist /out/dist
+
+# ---------------------------------------------------------------------------
+# 2. Minimal runtime image.
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS runtime
+ENV NODE_ENV=production
+ENV PORT=4000
+ENV HOST=0.0.0.0
 WORKDIR /app
 
-# Copy root package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY tsconfig.base.json ./
+# tini reaps zombies and forwards signals so graceful shutdown works under docker/k8s.
+RUN apk add --no-cache tini wget \
+ && addgroup -S chatverse && adduser -S -G chatverse chatverse
 
-# Copy workspace packages
-COPY packages/ ./packages/
+COPY --from=build --chown=chatverse:chatverse /out/package.json ./package.json
+COPY --from=build --chown=chatverse:chatverse /out/node_modules ./node_modules
+COPY --from=build --chown=chatverse:chatverse /out/dist ./dist
 
-# Copy API source
-COPY apps/api/ ./apps/api/
+USER chatverse
+EXPOSE 4000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/health/live" || exit 1
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Development stage
-FROM base AS development
-WORKDIR /app/apps/api
-EXPOSE 3001
-CMD ["pnpm", "dev"]
-
-# Build stage
-FROM base AS builder
-WORKDIR /app
-
-# Build shared packages first
-RUN pnpm build:packages
-
-# Build API
-WORKDIR /app/apps/api
-RUN pnpm build
-
-# Production stage
-FROM node:20-alpine AS production
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Create app directory
-WORKDIR /app
-
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY tsconfig.base.json ./
-
-# Copy built packages
-COPY --from=builder /app/packages/ ./packages/
-
-# Copy API package.json and built files
-COPY --from=builder /app/apps/api/package.json ./apps/api/
-COPY --from=builder /app/apps/api/dist/ ./apps/api/dist/
-
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Change ownership
-RUN chown -R nodejs:nodejs /app
-USER nodejs
-
-# Expose port
-EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
-
-# Start application
-WORKDIR /app/apps/api
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/index.js"]

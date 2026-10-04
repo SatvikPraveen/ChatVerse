@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: chatverse-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:4000']
+        labels:
+          node_id: api-1
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

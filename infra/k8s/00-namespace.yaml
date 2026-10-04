@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatverse
+  labels:
+    app.kubernetes.io/part-of: chatverse
+    pod-security.kubernetes.io/enforce: restricted

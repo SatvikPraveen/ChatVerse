@@ -1,0 +1,43 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: chatverse-api
+  namespace: chatverse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: chatverse-api
+  minReplicas: 2
+  maxReplicas: 10
+  behavior:
+    scaleDown:
+      # Sockets are long-lived: scale down slowly so clients are not reconnected in waves.
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+    # Connection count is the better signal for a chat gateway. With prometheus-adapter
+    # exposing `socket_connections` as a pods metric, add:
+    #
+    # - type: Pods
+    #   pods:
+    #     metric:
+    #       name: socket_connections
+    #     target:
+    #       type: AverageValue
+    #       averageValue: "5000"

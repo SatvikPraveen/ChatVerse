@@ -1,356 +1,382 @@
-# File: infra/terraform/aws/main.tf
+# Minimal, coherent AWS skeleton for ChatVerse:
+#   VPC (2 AZs, public + private subnets) → ECS Fargate running the API behind an ALB,
+#   DocumentDB (MongoDB-compatible) and ElastiCache Redis in the private subnets,
+#   an S3 bucket for attachments. The web app is static and best served from S3 + CloudFront
+#   (not modelled here).
+#
+# Usage: terraform init && terraform apply -var='jwt_access_secret=...' -var='jwt_refresh_secret=...'
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.6"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.0"
+      version = "~> 5.60"
     }
   }
 }
 
 provider "aws" {
-  region = var.aws_region
-
-  default_tags {
-    tags = {
-      Environment = var.environment
-      Project     = "chatverse"
-      ManagedBy   = "terraform"
-    }
-  }
+  region = var.region
 }
 
-# Data sources
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-data "aws_caller_identity" "current" {}
-
-# VPC Configuration
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
+locals {
+  name = "${var.project}-${var.environment}"
   tags = {
-    Name = "chatverse-vpc"
+    Project     = var.project
+    Environment = var.environment
+    ManagedBy   = "terraform"
   }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+# ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.13"
 
-  tags = {
-    Name = "chatverse-igw"
-  }
+  name = local.name
+  cidr = var.vpc_cidr
+
+  azs             = slice(data.aws_availability_zones.available.names, 0, 2)
+  public_subnets  = [cidrsubnet(var.vpc_cidr, 4, 0), cidrsubnet(var.vpc_cidr, 4, 1)]
+  private_subnets = [cidrsubnet(var.vpc_cidr, 4, 2), cidrsubnet(var.vpc_cidr, 4, 3)]
+
+  enable_nat_gateway = true
+  single_nat_gateway = var.environment != "prod"
+  tags               = local.tags
 }
 
-resource "aws_subnet" "private" {
-  count             = length(var.private_subnets)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnets[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
+data "aws_availability_zones" "available" {}
 
-  tags = {
-    Name                                        = "chatverse-private-${count.index + 1}"
-    "kubernetes.io/cluster/chatverse-cluster"  = "owned"
-    "kubernetes.io/role/internal-elb"          = "1"
+# ---------------------------------------------------------------------------
+# Security groups
+# ---------------------------------------------------------------------------
+resource "aws_security_group" "alb" {
+  name   = "${local.name}-alb"
+  vpc_id = module.vpc.vpc_id
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = local.tags
 }
 
-resource "aws_subnet" "public" {
-  count                   = length(var.public_subnets)
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnets[count.index]
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name                                        = "chatverse-public-${count.index + 1}"
-    "kubernetes.io/cluster/chatverse-cluster"  = "owned"
-    "kubernetes.io/role/elb"                   = "1"
+resource "aws_security_group" "api" {
+  name   = "${local.name}-api"
+  vpc_id = module.vpc.vpc_id
+  ingress {
+    from_port       = 4000
+    to_port         = 4000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = local.tags
 }
 
-# NAT Gateways
-resource "aws_eip" "nat" {
-  count  = length(var.public_subnets)
-  domain = "vpc"
-
-  tags = {
-    Name = "chatverse-eip-${count.index + 1}"
+resource "aws_security_group" "data" {
+  name   = "${local.name}-data"
+  vpc_id = module.vpc.vpc_id
+  ingress {
+    from_port       = 27017
+    to_port         = 27017
+    protocol        = "tcp"
+    security_groups = [aws_security_group.api.id]
   }
-
-  depends_on = [aws_internet_gateway.main]
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.api.id]
+  }
+  tags = local.tags
 }
 
-resource "aws_nat_gateway" "main" {
-  count         = length(var.public_subnets)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  tags = {
-    Name = "chatverse-nat-${count.index + 1}"
-  }
-
-  depends_on = [aws_internet_gateway.main]
+# ---------------------------------------------------------------------------
+# Data stores
+# ---------------------------------------------------------------------------
+resource "aws_docdb_subnet_group" "this" {
+  name       = local.name
+  subnet_ids = module.vpc.private_subnets
+  tags       = local.tags
 }
 
-# Route Tables
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name = "chatverse-public-rt"
-  }
+resource "aws_docdb_cluster" "this" {
+  cluster_identifier      = local.name
+  engine                  = "docdb"
+  master_username         = var.docdb_username
+  master_password         = var.docdb_password
+  db_subnet_group_name    = aws_docdb_subnet_group.this.name
+  vpc_security_group_ids  = [aws_security_group.data.id]
+  storage_encrypted       = true
+  backup_retention_period = var.environment == "prod" ? 7 : 1
+  skip_final_snapshot     = var.environment != "prod"
+  tags                    = local.tags
 }
 
-resource "aws_route_table" "private" {
-  count  = length(var.private_subnets)
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
-  }
-
-  tags = {
-    Name = "chatverse-private-rt-${count.index + 1}"
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  count          = length(var.public_subnets)
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "private" {
-  count          = length(var.private_subnets)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
-}
-
-# EKS Cluster
-resource "aws_eks_cluster" "main" {
-  name     = "chatverse-cluster"
-  role_arn = aws_iam_role.eks_cluster.arn
-  version  = var.kubernetes_version
-
-  vpc_config {
-    subnet_ids              = concat(aws_subnet.private[*].id, aws_subnet.public[*].id)
-    endpoint_private_access = true
-    endpoint_public_access  = true
-    public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
-  }
-
-  encryption_config {
-    provider {
-      key_arn = aws_kms_key.eks.arn
-    }
-    resources = ["secrets"]
-  }
-
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy,
-    aws_cloudwatch_log_group.eks_cluster,
-  ]
-
-  tags = {
-    Name = "chatverse-cluster"
-  }
-}
-
-# EKS Node Group
-resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "chatverse-nodes"
-  node_role_arn   = aws_iam_role.eks_node_group.arn
-  subnet_ids      = aws_subnet.private[*].id
-
-  capacity_type  = "ON_DEMAND"
-  instance_types = var.node_instance_types
-
-  scaling_config {
-    desired_size = var.node_desired_size
-    max_size     = var.node_max_size
-    min_size     = var.node_min_size
-  }
-
-  update_config {
-    max_unavailable = 1
-  }
-
-  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.eks_container_registry_policy,
-  ]
-
-  tags = {
-    Name = "chatverse-nodes"
-  }
-}
-
-# DocumentDB (MongoDB Compatible)
-resource "aws_docdb_cluster" "main" {
-  cluster_identifier              = "chatverse-docdb"
-  engine                         = "docdb"
-  master_username                = var.docdb_username
-  master_password                = var.docdb_password
-  backup_retention_period        = 7
-  preferred_backup_window        = "07:00-09:00"
-  preferred_maintenance_window   = "sun:05:00-sun:06:00"
-  skip_final_snapshot           = var.environment == "dev"
-  storage_encrypted             = true
-  kms_key_id                    = aws_kms_key.docdb.arn
-
-  db_subnet_group_name   = aws_docdb_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.docdb.id]
-
-  tags = {
-    Name = "chatverse-docdb"
-  }
-}
-
-resource "aws_docdb_cluster_instance" "main" {
-  count              = var.docdb_instance_count
-  identifier         = "chatverse-docdb-${count.index}"
-  cluster_identifier = aws_docdb_cluster.main.id
+resource "aws_docdb_cluster_instance" "this" {
+  count              = var.environment == "prod" ? 2 : 1
+  identifier         = "${local.name}-${count.index}"
+  cluster_identifier = aws_docdb_cluster.this.id
   instance_class     = var.docdb_instance_class
-
-  tags = {
-    Name = "chatverse-docdb-${count.index}"
-  }
+  tags               = local.tags
 }
 
-# ElastiCache Redis
-resource "aws_elasticache_replication_group" "main" {
-  replication_group_id    = "chatverse-redis"
-  description            = "Redis cluster for ChatVerse"
+resource "aws_elasticache_subnet_group" "this" {
+  name       = local.name
+  subnet_ids = module.vpc.private_subnets
+}
 
-  port                   = 6379
-  parameter_group_name   = "default.redis7"
-  node_type             = var.redis_node_type
-  num_cache_clusters    = var.redis_num_cache_clusters
-
-  subnet_group_name     = aws_elasticache_subnet_group.main.name
-  security_group_ids    = [aws_security_group.redis.id]
-
+resource "aws_elasticache_replication_group" "this" {
+  replication_group_id       = local.name
+  description                = "ChatVerse presence, rate limiting and Socket.IO adapter"
+  engine                     = "redis"
+  engine_version             = "7.1"
+  node_type                  = var.redis_node_type
+  num_cache_clusters         = var.environment == "prod" ? 2 : 1
+  automatic_failover_enabled = var.environment == "prod"
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  auth_token                = var.redis_auth_token
-
-  tags = {
-    Name = "chatverse-redis"
-  }
+  auth_token                 = var.redis_auth_token
+  subnet_group_name          = aws_elasticache_subnet_group.this.name
+  security_group_ids         = [aws_security_group.data.id]
+  tags                       = local.tags
 }
 
-# S3 Bucket for file uploads
 resource "aws_s3_bucket" "uploads" {
-  bucket = "chatverse-uploads-${random_string.bucket_suffix.result}"
-
-  tags = {
-    Name        = "chatverse-uploads"
-    Environment = var.environment
-  }
-}
-
-resource "aws_s3_bucket_versioning" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.s3.arn
-      sse_algorithm     = "aws:kms"
-    }
-  }
+  bucket = "${local.name}-uploads"
+  tags   = local.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
-
+  bucket                  = aws_s3_bucket.uploads.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
-# CloudFront Distribution
-resource "aws_cloudfront_distribution" "main" {
-  origin {
-    domain_name = aws_s3_bucket.uploads.bucket_regional_domain_name
-    origin_id   = "S3-${aws_s3_bucket.uploads.bucket}"
-
-    s3_origin_config {
-      origin_access_identity = aws_cloudfront_origin_access_identity.main.cloudfront_access_identity_path
-    }
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  default_root_object = "index.html"
-
-  default_cache_behavior {
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${aws_s3_bucket.uploads.bucket}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
-  }
-
-  price_class = "PriceClass_100"
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
-
-  tags = {
-    Name = "chatverse-cdn"
+resource "aws_s3_bucket_cors_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  cors_rule {
+    allowed_methods = ["PUT", "GET"]
+    allowed_origins = var.cors_origins
+    allowed_headers = ["*"]
+    max_age_seconds = 3600
   }
 }
 
-# Random string for unique naming
-resource "random_string" "bucket_suffix" {
-  length  = 8
-  special = false
-  upper   = false
+# ---------------------------------------------------------------------------
+# Compute: ECS Fargate + ALB
+# ---------------------------------------------------------------------------
+resource "aws_ecs_cluster" "this" {
+  name = local.name
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "api" {
+  name              = "/ecs/${local.name}/api"
+  retention_in_days = 30
+  tags              = local.tags
+}
+
+data "aws_iam_policy_document" "ecs_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "task_execution" {
+  name               = "${local.name}-task-execution"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution" {
+  role       = aws_iam_role.task_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role" "task" {
+  name               = "${local.name}-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy" "task_s3" {
+  name = "uploads"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+      Resource = "${aws_s3_bucket.uploads.arn}/*"
+    }]
+  })
+}
+
+resource "aws_ecs_task_definition" "api" {
+  family                   = "${local.name}-api"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.api_cpu
+  memory                   = var.api_memory
+  execution_role_arn       = aws_iam_role.task_execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  container_definitions = jsonencode([{
+    name      = "api"
+    image     = var.api_image
+    essential = true
+    portMappings = [{ containerPort = 4000, protocol = "tcp" }]
+    environment = [
+      { name = "NODE_ENV", value = "production" },
+      { name = "HOST", value = "0.0.0.0" },
+      { name = "PORT", value = "4000" },
+      { name = "TRUST_PROXY", value = "1" },
+      { name = "METRICS_ENABLED", value = "true" },
+      { name = "CORS_ORIGINS", value = join(",", var.cors_origins) },
+      { name = "MONGODB_URI", value = "mongodb://${var.docdb_username}:${var.docdb_password}@${aws_docdb_cluster.this.endpoint}:27017/chatverse?tls=true&retryWrites=false" },
+      { name = "REDIS_URL", value = "rediss://:${var.redis_auth_token}@${aws_elasticache_replication_group.this.primary_endpoint_address}:6379/0" },
+      { name = "JWT_ACCESS_SECRET", value = var.jwt_access_secret },
+      { name = "JWT_REFRESH_SECRET", value = var.jwt_refresh_secret },
+      { name = "S3_REGION", value = var.region },
+      { name = "S3_BUCKET", value = aws_s3_bucket.uploads.bucket },
+      { name = "S3_PUBLIC_URL", value = "https://${aws_s3_bucket.uploads.bucket_regional_domain_name}" },
+    ]
+    # Production deployments should move the secrets above to SSM/Secrets Manager via `secrets`.
+    healthCheck = {
+      command     = ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health/live || exit 1"]
+      interval    = 15
+      timeout     = 3
+      retries     = 3
+      startPeriod = 20
+    }
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.api.name
+        awslogs-region        = var.region
+        awslogs-stream-prefix = "api"
+      }
+    }
+  }])
+  tags = local.tags
+}
+
+resource "aws_lb" "this" {
+  name               = local.name
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = module.vpc.public_subnets
+  idle_timeout       = 3600 # keep websockets open
+  tags               = local.tags
+}
+
+resource "aws_lb_target_group" "api" {
+  name        = "${local.name}-api"
+  port        = 4000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = module.vpc.vpc_id
+  health_check {
+    path                = "/health/ready"
+    interval            = 15
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+  # Sticky sessions for the Socket.IO long-polling fallback.
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 3600
+    enabled         = true
+  }
+  tags = local.tags
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api.arn
+  }
+  # Attach an ACM certificate and add a 443 listener + 80→443 redirect for production.
+}
+
+resource "aws_ecs_service" "api" {
+  name            = "${local.name}-api"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.api_desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = module.vpc.private_subnets
+    security_groups = [aws_security_group.api.id]
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.api.arn
+    container_name   = "api"
+    container_port   = 4000
+  }
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+  depends_on                         = [aws_lb_listener.http]
+  tags                               = local.tags
+}
+
+resource "aws_appautoscaling_target" "api" {
+  service_namespace  = "ecs"
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.api.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  min_capacity       = var.api_desired_count
+  max_capacity       = var.api_max_count
+}
+
+resource "aws_appautoscaling_policy" "api_cpu" {
+  name               = "${local.name}-api-cpu"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.api.service_namespace
+  resource_id        = aws_appautoscaling_target.api.resource_id
+  scalable_dimension = aws_appautoscaling_target.api.scalable_dimension
+  target_tracking_scaling_policy_configuration {
+    target_value       = 65
+    scale_in_cooldown  = 600
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
 }

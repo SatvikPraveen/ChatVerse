@@ -1,188 +1,203 @@
-# File: infra/docker/docker-compose.dev.yml
+# Local development stack.
+#   pnpm docker:dev                      # everything
+#   docker compose -f infra/docker/docker-compose.dev.yml up mongo redis minio   # deps only
+#   docker compose -f infra/docker/docker-compose.dev.yml --profile tools up      # + mongo-express
+#
+# Ports: web 8080, api 4000, mongo 27017, redis 6379, minio 9000/9001,
+#        prometheus 9090, grafana 3002, mongo-express 8081 (profile "tools")
 
-version: '3.8'
+name: chatverse
+
+x-api-env: &api-env
+  NODE_ENV: development
+  HOST: 0.0.0.0
+  PORT: 4000
+  MONGODB_URI: mongodb://chatverse:chatverse123@mongo:27017/chatverse?authSource=admin
+  REDIS_URL: redis://:chatverse123@redis:6379/0
+  JWT_ACCESS_SECRET: dev-access-secret-change-me-0123456789abcdef
+  JWT_REFRESH_SECRET: dev-refresh-secret-change-me-0123456789abcdef
+  ACCESS_TOKEN_TTL_SEC: 900
+  REFRESH_TOKEN_TTL_SEC: 2592000
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  LOG_LEVEL: debug
+  TRUST_PROXY: '1'
+  RATE_LIMIT_WINDOW_SEC: 60
+  RATE_LIMIT_MAX: 300
+  METRICS_ENABLED: 'true'
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: chatverse-uploads
+  S3_ACCESS_KEY_ID: chatverse
+  S3_SECRET_ACCESS_KEY: chatverse123
+  S3_PUBLIC_URL: http://localhost:9000/chatverse-uploads
+  VAPID_PUBLIC_KEY: ''
+  VAPID_PRIVATE_KEY: ''
+  VAPID_SUBJECT: mailto:dev@chatverse.local
+  MESSAGE_RETENTION_DAYS: 365
 
 services:
-  # Database
   mongo:
-    image: mongo:7.0
+    image: mongo:7
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    command: ['mongod', '--wiredTigerCacheSizeGB', '0.5']
     environment:
       MONGO_INITDB_ROOT_USERNAME: chatverse
       MONGO_INITDB_ROOT_PASSWORD: chatverse123
       MONGO_INITDB_DATABASE: chatverse
+    ports:
+      - '27017:27017'
     volumes:
       - mongo_data:/data/db
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks:
-      - chatverse
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mongosh',
+          '--quiet',
+          '-u',
+          'chatverse',
+          '-p',
+          'chatverse123',
+          '--eval',
+          "db.adminCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # Cache & Session Store
   redis:
-    image: redis:7.2-alpine
+    image: redis:7-alpine
     restart: unless-stopped
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'chatverse123',
+        '--maxmemory',
+        '256mb',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
     ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass chatverse123
+      - '6379:6379'
     volumes:
       - redis_data:/data
-    networks:
-      - chatverse
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'chatverse123', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
-  # Object Storage (S3 Compatible)
   minio:
     image: minio/minio:latest
     restart: unless-stopped
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: chatverse
       MINIO_ROOT_PASSWORD: chatverse123
-    command: server /data --console-address ":9001"
+    ports:
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
-    networks:
-      - chatverse
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # Create MinIO bucket
-  minio-setup:
+  minio-init:
     image: minio/mc:latest
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set minio http://minio:9000 chatverse chatverse123;
-      /usr/bin/mc mb minio/chatverse-uploads;
-      /usr/bin/mc policy set public minio/chatverse-uploads;
-      exit 0;
+      mc alias set local http://minio:9000 chatverse chatverse123 &&
+      mc mb --ignore-existing local/chatverse-uploads &&
+      mc anonymous set download local/chatverse-uploads
       "
-    networks:
-      - chatverse
 
-  # API Server
   api:
     build:
-      context: ../../
+      context: ../..
       dockerfile: infra/docker/api.Dockerfile
     restart: unless-stopped
-    ports:
-      - "3001:3001"
     environment:
-      NODE_ENV: development
-      PORT: 3001
-
-      # Database
-      MONGODB_URI: mongodb://chatverse:chatverse123@mongo:27017/chatverse?authSource=admin
-
-      # Redis
-      REDIS_URL: redis://:chatverse123@redis:6379
-
-      # JWT
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
-
-      # S3/MinIO
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: chatverse-uploads
-      S3_ACCESS_KEY: chatverse
-      S3_SECRET_KEY: chatverse123
-      S3_REGION: us-east-1
-
-      # CORS
-      CORS_ORIGIN: http://localhost:3000
-
-      # Push Notifications
-      VAPID_PUBLIC_KEY: your-vapid-public-key
-      VAPID_PRIVATE_KEY: your-vapid-private-key
-
-      # Rate Limiting
-      RATE_LIMIT_WINDOW_MS: 900000
-      RATE_LIMIT_MAX: 100
-
-      # Logging
-      LOG_LEVEL: debug
-    volumes:
-      - ../../apps/api:/app
-      - /app/node_modules
+      <<: *api-env
+      NODE_ID: api-1
+    ports:
+      - '4000:4000'
     depends_on:
-      - mongo
-      - redis
-      - minio
-    networks:
-      - chatverse
-    develop:
-      watch:
-        - action: sync
-          path: ../../apps/api/src
-          target: /app/src
-        - action: rebuild
-          path: ../../apps/api/package.json
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:4000/health/ready']
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
 
-  # Web Frontend
   web:
     build:
-      context: ../../
+      context: ../..
       dockerfile: infra/docker/web.Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
-    environment:
-      VITE_API_URL: http://localhost:3001
-      VITE_WS_URL: ws://localhost:3001
-      VITE_UPLOAD_MAX_SIZE: 10485760
-      VITE_VAPID_PUBLIC_KEY: your-vapid-public-key
+      - '8080:80'
+    depends_on:
+      api:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - '9090:9090'
     volumes:
-      - ../../apps/web:/app
-      - /app/node_modules
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
     depends_on:
       - api
-    networks:
-      - chatverse
-    develop:
-      watch:
-        - action: sync
-          path: ../../apps/web/src
-          target: /app/src
-        - action: rebuild
-          path: ../../apps/web/package.json
-
-  # Monitoring & Observability
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    networks:
-      - chatverse
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.2.0
     restart: unless-stopped
-    ports:
-      - "3002:3000"
     environment:
+      GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - '3002:3000'
     volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
-    networks:
-      - chatverse
+    depends_on:
+      - prometheus
+
+  mongo-express:
+    image: mongo-express:1.0
+    profiles: ['tools']
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://chatverse:chatverse123@mongo:27017/?authSource=admin
+      ME_CONFIG_BASICAUTH: 'false'
+    ports:
+      - '8081:8081'
+    depends_on:
+      mongo:
+        condition: service_healthy
 
 volumes:
   mongo_data:
@@ -190,7 +205,3 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
-
-networks:
-  chatverse:
-    driver: bridge

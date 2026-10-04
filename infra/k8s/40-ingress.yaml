@@ -1,0 +1,52 @@
+# ingress-nginx. /api, /socket.io, /health and /metrics route straight to the API so that the
+# web pods are purely static; everything else is the SPA.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chatverse
+  namespace: chatverse
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-body-size: 30m
+    # Sticky sessions for Socket.IO long-polling fallback; harmless for pure websocket clients.
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/session-cookie-name: chatverse_sticky
+    nginx.ingress.kubernetes.io/session-cookie-max-age: '3600'
+    nginx.ingress.kubernetes.io/session-cookie-path: /
+    # ingress-nginx upgrades websocket connections automatically when the client asks.
+spec:
+  tls:
+    - hosts: [chat.example.com]
+      secretName: chatverse-tls
+  rules:
+    - host: chat.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: chatverse-api
+                port: { name: http }
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: chatverse-api
+                port: { name: http }
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: chatverse-api
+                port: { name: http }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chatverse-web
+                port: { name: http }
