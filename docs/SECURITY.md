@@ -1,579 +1,122 @@
-# Security Guide
+# Security Model
 
-**File: docs/SECURITY.md**
+This document states what ChatVerse protects, against whom, and how. It is written so that each
+claim can be traced to code and, where possible, to a test.
 
-## 🔐 Security Overview
+## 1. Assets
 
-ChatVerse implements comprehensive security measures following industry best practices and OWASP guidelines. This document outlines our security architecture, threat mitigation strategies, and secure development practices.
+1. Message content and attachments.
+2. Message *metadata*: who talks to whom, when, how often.
+3. Account credentials and sessions.
+4. Availability of the service.
 
-## 🎯 Security Principles
+## 2. Adversaries
 
-### 1. **Defense in Depth**
-- Multiple layers of security controls
-- No single point of failure
-- Redundant protection mechanisms
+| Adversary | Capabilities | In scope? |
+| --- | --- | --- |
+| Network attacker | Observe/modify traffic between client and server | Yes (TLS + E2EE) |
+| Malicious or compromised server | Read the database, replay or reorder stored payloads, serve forged key bundles | Yes for content (E2EE), partially for metadata |
+| Other users | Send arbitrary API/socket traffic, attempt to read others' conversations, flood | Yes |
+| Compromised device (one-time snapshot) | Obtain all keys and state on a device at one instant | Yes (forward secrecy, post-compromise security) |
+| Persistent device malware | Continuous access to a device | No |
+| Traffic analysis of encrypted channels | Timing and size correlation | No (sizes are not padded) |
 
-### 2. **Zero Trust Architecture**
-- Verify every request regardless of source
-- Assume breach mentality
-- Continuous authentication and authorization
+## 3. Transport and account security
 
-### 3. **Privacy by Design**
-- Data minimization principles
-- User consent and control
-- Transparent data handling
+* TLS terminates at the ingress; HSTS and a strict CSP are set by `helmet`.
+* Passwords are hashed with **scrypt** (N = 2^15, r = 8, p = 1, 32-byte salt) using Node's
+  built-in implementation. Verification is constant-time.
+* Access tokens are JWTs with a 15-minute lifetime; refresh tokens are 256-bit random values
+  stored server-side with a TTL and **rotated on every use**. Reuse of a rotated token revokes
+  the whole token family ("refresh token reuse detection").
+* Every REST route validates its input with the shared zod schemas; the socket gateway does the
+  same for every event. Unknown fields are rejected.
+* Authorization is checked at the service layer: a user can only read or write conversations
+  they participate in (`NOT_A_PARTICIPANT`), edit their own messages, and manage participants
+  according to their role.
+* Rate limits exist at three layers: per-IP/per-user HTTP fixed window, per-socket per-event
+  token buckets, and connection-level limits at the ingress.
+* Logs never contain tokens, passwords, or message bodies; request IDs allow correlation.
 
-### 4. **Secure by Default**
-- Fail-safe defaults
-- Secure configuration out of the box
-- Regular security updates
+## 4. End-to-end encryption
 
-## 🔒 Authentication & Authorization
+ChatVerse implements the Signal-style trio of protocols in `packages/crypto`, built on the
+audited `@noble` primitives (X25519, Ed25519, HKDF-SHA256, HMAC-SHA256, XChaCha20-Poly1305).
 
-### JWT Token Security
+### 4.1 Key material per device
 
-#### Token Structure
-```typescript
-// Access Token (15 minutes)
-{
-  "userId": "64f1a2b3c4d5e6f7g8h9i0j1",
-  "email": "user@example.com",
-  "type": "access",
-  "iat": 1642262400,
-  "exp": 1642263300
-}
+| Key | Type | Lifetime | Published |
+| --- | --- | --- | --- |
+| Identity key `IK` | X25519 | Device lifetime | Yes |
+| Signing key `SK` | Ed25519 | Device lifetime | Yes |
+| Signed pre-key `SPK` | X25519, signed by `SK` | Rotated periodically | Yes |
+| One-time pre-keys `OPK` | X25519 | Single use | Yes, consumed on fetch |
 
-// Refresh Token (7 days)
-{
-  "userId": "64f1a2b3c4d5e6f7g8h9i0j1",
-  "type": "refresh",
-  "jti": "unique-token-id",
-  "iat": 1642262400,
-  "exp": 1642867200
-}
+Private halves are generated on the device and persisted only there (IndexedDB in the web
+client). The server stores public halves and hands out one `OPK` per bundle fetch using an
+atomic pop, so no `OPK` is ever used twice.
+
+Design note: unlike Signal, which signs with an XEdDSA transform of the identity key, ChatVerse
+keeps a separate Ed25519 signing key (as Matrix/Olm does). This keeps every primitive in its
+standard form at the cost of one extra 32-byte public key.
+
+### 4.2 Session establishment: X3DH
+
+Alice fetches Bob's bundle, verifies the `SPK` signature, and computes
+
+```
+DH1 = DH(IK_A, SPK_B)   DH2 = DH(EK_A, IK_B)   DH3 = DH(EK_A, SPK_B)   DH4 = DH(EK_A, OPK_B)
+SK  = HKDF-SHA256(0xFF*32 || DH1 || DH2 || DH3 || DH4, info = "ChatVerse-X3DH-v1")
+AD  = IK_A || IK_B
 ```
 
-#### Token Security Features
-- **RS256 Algorithm**: Asymmetric signing with RSA keys
-- **Short Expiration**: 15-minute access tokens minimize exposure
-- **Refresh Rotation**: New refresh token issued on each use
-- **JTI Claims**: Unique identifiers for token revocation
-- **Secure Storage**: HttpOnly cookies for refresh tokens
-
-#### Implementation
-```typescript
-// JWT signing with RSA private key
-const signToken = (payload: TokenPayload, type: 'access' | 'refresh') => {
-  const secret = type === 'access' ? ACCESS_TOKEN_PRIVATE_KEY : REFRESH_TOKEN_PRIVATE_KEY;
-  const expiresIn = type === 'access' ? '15m' : '7d';
-
-  return jwt.sign(payload, secret, {
-    algorithm: 'RS256',
-    expiresIn,
-    issuer: 'chatverse.com',
-    audience: 'chatverse-client'
-  });
-};
-
-// Token verification with RSA public key
-const verifyToken = (token: string, type: 'access' | 'refresh') => {
-  const secret = type === 'access' ? ACCESS_TOKEN_PUBLIC_KEY : REFRESH_TOKEN_PUBLIC_KEY;
-
-  return jwt.verify(token, secret, {
-    algorithm: 'RS256',
-    issuer: 'chatverse.com',
-    audience: 'chatverse-client'
-  });
-};
-```
-
-### Password Security
-
-#### Password Requirements
-- **Minimum length**: 8 characters
-- **Complexity**: At least 3 of 4 character types (uppercase, lowercase, numbers, symbols)
-- **No common passwords**: Dictionary check against 100k most common passwords
-- **No personal info**: Username, email, or name derivatives forbidden
-
-#### Password Hashing
-```typescript
-import bcrypt from 'bcrypt';
-
-// Hash password with 12 rounds (recommended for 2024)
-const hashPassword = async (password: string): Promise<string> => {
-  const saltRounds = 12;
-  return await bcrypt.hash(password, saltRounds);
-};
-
-// Verify password with timing-safe comparison
-const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
-  return await bcrypt.compare(password, hash);
-};
-```
-
-### Multi-Factor Authentication (Future)
-- **TOTP**: Time-based one-time passwords
-- **SMS**: Backup verification method
-- **Recovery Codes**: Single-use backup codes
-
-## 🛡️ Input Validation & Sanitization
-
-### Request Validation
-```typescript
-import Joi from 'joi';
-import DOMPurify from 'isomorphic-dompurify';
-
-// Joi validation schemas
-const messageSchema = Joi.object({
-  conversationId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
-  type: Joi.string().valid('text', 'image', 'file', 'video', 'audio').required(),
-  content: Joi.string().max(10000).required(),
-  replyTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional()
-});
-
-// Input sanitization middleware
-const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
-  // Sanitize string fields recursively
-  const sanitizeObject = (obj: any): any => {
-    if (typeof obj === 'string') {
-      return DOMPurify.sanitize(obj, { ALLOWED_TAGS: [] });
-    }
-    if (Array.isArray(obj)) {
-      return obj.map(sanitizeObject);
-    }
-    if (obj && typeof obj === 'object') {
-      const sanitized: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        sanitized[key] = sanitizeObject(value);
-      }
-      return sanitized;
-    }
-    return obj;
-  };
-
-  req.body = sanitizeObject(req.body);
-  req.query = sanitizeObject(req.query);
-  next();
-};
-```
-
-### SQL/NoSQL Injection Prevention
-```typescript
-// MongoDB injection prevention
-const sanitizeMongoQuery = (query: any): any => {
-  if (query && typeof query === 'object') {
-    const sanitized: any = {};
-    for (const [key, value] of Object.entries(query)) {
-      // Prevent operator injection
-      if (key.startsWith('$')) continue;
-      sanitized[key] = typeof value === 'object' ? JSON.stringify(value) : value;
-    }
-    return sanitized;
-  }
-  return query;
-};
-```
-
-## 🚫 Rate Limiting & DDoS Protection
-
-### Rate Limiting Strategy
-```typescript
-import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-
-// Different limits for different endpoints
-const createRateLimit = (windowMs: number, max: number, message: string) => {
-  return rateLimit({
-    store: new RedisStore({
-      sendCommand: (...args: string[]) => redis.call(...args),
-    }),
-    windowMs,
-    max,
-    message: { error: { code: 'RATE_LIMIT_EXCEEDED', message } },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-};
-
-// Apply different limits
-app.use('/auth/login', createRateLimit(15 * 60 * 1000, 5, 'Too many login attempts'));
-app.use('/auth/register', createRateLimit(15 * 60 * 1000, 3, 'Too many registration attempts'));
-app.use('/messages', createRateLimit(60 * 1000, 100, 'Too many messages'));
-app.use('/', createRateLimit(15 * 60 * 1000, 1000, 'Too many requests'));
-```
-
-### Socket.io Rate Limiting
-```typescript
-import { RateLimiterRedis } from 'rate-limiter-flexible';
-
-const messageLimiter = new RateLimiterRedis({
-  storeClient: redis,
-  keyPrefix: 'socket_message',
-  points: 30, // 30 messages
-  duration: 60, // per minute
-});
-
-socket.on('send_message', async (data, callback) => {
-  try {
-    await messageLimiter.consume(socket.userId);
-    // Process message
-  } catch (rejRes) {
-    socket.emit('rate_limit_exceeded', {
-      limit: 30,
-      windowMs: 60000,
-      remaining: rejRes.remainingPoints,
-      resetTime: new Date(Date.now() + rejRes.msBeforeNext)
-    });
-  }
-});
-```
-
-## 🔐 Data Encryption
-
-### End-to-End Encryption (Optional)
-```typescript
-import crypto from 'crypto';
-
-// Generate key pair for user
-const generateKeyPair = () => {
-  return crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-  });
-};
-
-// Encrypt message with recipient's public key
-const encryptMessage = (message: string, publicKey: string): string => {
-  const buffer = Buffer.from(message, 'utf8');
-  const encrypted = crypto.publicEncrypt(publicKey, buffer);
-  return encrypted.toString('base64');
-};
-
-// Decrypt message with private key
-const decryptMessage = (encryptedMessage: string, privateKey: string): string => {
-  const buffer = Buffer.from(encryptedMessage, 'base64');
-  const decrypted = crypto.privateDecrypt(privateKey, buffer);
-  return decrypted.toString('utf8');
-};
-```
-
-### Data at Rest Encryption
-- **MongoDB**: Encryption at rest enabled
-- **Redis**: TLS encryption for data in transit
-- **S3**: Server-side encryption (SSE-S3/SSE-KMS)
-- **Secrets**: Environment variables encrypted
-
-## 🛡️ Security Headers
-
-### HTTP Security Headers
-```typescript
-import helmet from 'helmet';
-
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  }
-}));
-
-// Additional custom headers
-app.use((req, res, next) => {
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  next();
-});
-```
-
-### CORS Configuration
-```typescript
-import cors from 'cors';
-
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://chatverse.com', 'https://app.chatverse.com']
-    : ['http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
-};
-
-app.use(cors(corsOptions));
-```
-
-## 🔍 Vulnerability Assessment
-
-### OWASP Top 10 Mitigation
-
-#### A01: Broken Access Control
-- **JWT validation** on all protected routes
-- **Role-based access control** for admin functions
-- **Resource ownership validation** for user data
-- **Principle of least privilege**
-
-#### A02: Cryptographic Failures
-- **Strong encryption** for passwords (bcrypt)
-- **TLS 1.3** for data in transit
-- **Secure key management** with environment variables
-- **No hardcoded secrets** in code
-
-#### A03: Injection
-- **Parameterized queries** with Mongoose
-- **Input validation** with Joi schemas
-- **Output encoding** with DOMPurify
-- **NoSQL injection prevention**
-
-#### A04: Insecure Design
-- **Threat modeling** during development
-- **Security requirements** in user stories
-- **Secure architecture reviews**
-- **Defense in depth** strategy
-
-#### A05: Security Misconfiguration
-- **Secure defaults** in all configurations
-- **Regular security updates**
-- **Minimal attack surface**
-- **Error handling** without information disclosure
-
-#### A06: Vulnerable Components
-- **Dependency scanning** with npm audit
-- **Automated updates** for security patches
-- **Software composition analysis**
-- **Regular vulnerability assessments**
-
-#### A07: Authentication Failures
-- **Strong password requirements**
-- **Account lockout** after failed attempts
-- **Session management** with secure tokens
-- **Multi-factor authentication** (planned)
-
-#### A08: Software Integrity Failures
-- **Code signing** for deployments
-- **Dependency verification**
-- **CI/CD security** with signed commits
-- **Software bill of materials**
-
-#### A09: Logging Failures
-- **Comprehensive audit logging**
-- **Security event monitoring**
-- **Log integrity protection**
-- **Incident response procedures**
-
-#### A10: Server-Side Request Forgery
-- **URL validation** for external requests
-- **Network segmentation**
-- **Allowlist approach** for external services
-- **Request sanitization**
-
-## 📊 Security Monitoring
-
-### Audit Logging
-```typescript
-import winston from 'winston';
-
-const securityLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'security.log' }),
-    new winston.transports.Console()
-  ]
-});
-
-// Log security events
-const logSecurityEvent = (event: string, userId: string, details: any) => {
-  securityLogger.info({
-    event,
-    userId,
-    timestamp: new Date().toISOString(),
-    ip: details.ip,
-    userAgent: details.userAgent,
-    details
-  });
-};
-
-// Examples
-logSecurityEvent('LOGIN_SUCCESS', userId, { ip, userAgent });
-logSecurityEvent('LOGIN_FAILURE', null, { email, ip, userAgent });
-logSecurityEvent('RATE_LIMIT_EXCEEDED', userId, { endpoint, ip });
-```
-
-### Intrusion Detection
-```typescript
-// Suspicious activity detection
-const detectSuspiciousActivity = async (userId: string, activity: string) => {
-  const key = `suspicious:${userId}:${activity}`;
-  const count = await redis.incr(key);
-
-  if (count === 1) {
-    await redis.expire(key, 3600); // 1 hour window
-  }
-
-  // Alert on threshold
-  if (count > SUSPICIOUS_THRESHOLD) {
-    await alertSecurityTeam({
-      type: 'SUSPICIOUS_ACTIVITY',
-      userId,
-      activity,
-      count,
-      timestamp: new Date()
-    });
-  }
-};
-```
-
-## 🔐 File Upload Security
-
-### File Validation
-```typescript
-import fileType from 'file-type';
-import sharp from 'sharp';
-
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf', 'text/plain',
-  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-];
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-const validateFile = async (buffer: Buffer, originalName: string) => {
-  // Check file size
-  if (buffer.length > MAX_FILE_SIZE) {
-    throw new Error('File too large');
-  }
-
-  // Detect actual file type
-  const detectedType = await fileType.fromBuffer(buffer);
-  if (!detectedType || !ALLOWED_MIME_TYPES.includes(detectedType.mime)) {
-    throw new Error('Invalid file type');
-  }
-
-  // Validate file extension matches content
-  const extension = path.extname(originalName).toLowerCase();
-  if (detectedType.ext !== extension.slice(1)) {
-    throw new Error('File extension mismatch');
-  }
-
-  return detectedType;
-};
-
-// Image processing and sanitization
-const sanitizeImage = async (buffer: Buffer) => {
-  return await sharp(buffer)
-    .jpeg({ quality: 85 }) // Convert to JPEG and compress
-    .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }) // Resize
-    .removeAlpha() // Remove potential hidden channels
-    .toBuffer();
-};
-```
-
-## 🚨 Incident Response
-
-### Security Incident Classification
-- **P0 - Critical**: Data breach, system compromise
-- **P1 - High**: Authentication bypass, privilege escalation
-- **P2 - Medium**: Information disclosure, DoS
-- **P3 - Low**: Configuration issues, minor vulnerabilities
-
-### Response Procedures
-1. **Detection**: Automated alerts, user reports, security scans
-2. **Analysis**: Threat assessment, impact evaluation
-3. **Containment**: Isolate affected systems, revoke compromised tokens
-4. **Eradication**: Remove malicious code, patch vulnerabilities
-5. **Recovery**: Restore services, validate integrity
-6. **Lessons Learned**: Post-incident review, improve defenses
-
-### Contact Information
-```bash
-# Emergency Security Contacts
-Security Team: security@chatverse.com
-On-Call: +1-555-SECURITY
-Incident Response: incidents@chatverse.com
-```
-
-## 🔐 Secure Development
-
-### Code Review Checklist
-- [ ] Authentication checks on all protected endpoints
-- [ ] Input validation and sanitization
-- [ ] SQL/NoSQL injection prevention
-- [ ] XSS prevention measures
-- [ ] CSRF protection where needed
-- [ ] Proper error handling (no info disclosure)
-- [ ] Rate limiting on user-facing endpoints
-- [ ] Secure configuration (no hardcoded secrets)
-- [ ] Logging of security events
-- [ ] Authorization checks for data access
-
-### Static Analysis Tools
-```bash
-# Security linting
-npm run lint:security
-
-# Dependency vulnerability scanning
-npm audit
-snyk test
-
-# SAST scanning
-semgrep --config=auto .
-```
-
-### Penetration Testing
-- **Quarterly external penetration tests**
-- **Annual red team exercises**
-- **Continuous automated security testing**
-- **Bug bounty program** (planned)
-
-## 🎯 Security Roadmap
-
-### Current Security Level: ★★★★☆
-
-### Completed ✅
-- JWT authentication with refresh tokens
-- Input validation and sanitization
-- Rate limiting and DDoS protection
-- Security headers and CORS
-- Password hashing with bcrypt
-- File upload security
-- Audit logging
-
-### In Progress 🚧
-- End-to-end encryption implementation
-- Advanced threat detection
-- Security monitoring dashboard
-
-### Planned 📋
-- Multi-factor authentication
-- Hardware security keys support
-- Advanced persistent threat detection
-- Zero-trust network architecture
-- Compliance certifications (SOC 2, ISO 27001)
-
----
-
-**For security reports or questions, contact: security@chatverse.com**
-
-*Last updated: July 2025*
+Her first message carries `IK_A`, `EK_A` and the pre-key ids so Bob can derive the same `SK`.
+`AD` is bound into every subsequent AEAD call, so a message can never be transplanted between
+sessions.
+
+### 4.3 Steady state: Double Ratchet
+
+* Root chain: `KDF_RK(rk, dh) = HKDF(ikm = dh, salt = rk, info = "ChatVerse-DR-root-v1")`.
+* Symmetric chains: `mk = HMAC(ck, 0x01)`, `ck' = HMAC(ck, 0x02)`.
+* Message cipher: `(key, nonce) = HKDF(mk, info = "ChatVerse-DR-msg-v1")` then
+  XChaCha20-Poly1305 with `AD || header` as associated data.
+* Skipped message keys are stored for out-of-order delivery, bounded by `MAX_SKIP = 1000`.
+* Decryption is **transactional**: a failed authentication restores the previous state, so an
+  attacker cannot desynchronise a session by injecting garbage.
+
+### 4.4 Groups: Sender Keys
+
+Each member generates a chain key and an Ed25519 signing key per group, distributes them to the
+other members over pairwise Double Ratchet sessions, and encrypts each group message once. Every
+message is signed, so members cannot impersonate each other. Chains are rotated when membership
+changes so that removed members cannot read new messages.
+
+### 4.5 Properties and where they are tested
+
+| Property | Mechanism | Test |
+| --- | --- | --- |
+| Confidentiality from the server | Opaque payloads; keys never uploaded | `session.test.ts` |
+| Authentication of peers | X3DH DH1/DH2; bundle signature check | `session.test.ts` (forged bundle rejected) |
+| Forward secrecy (per message) | One-time message keys from hash chains | `ratchet.test.ts` (replay rejected) |
+| Post-compromise security | DH ratchet on every reply | `ratchet.test.ts` (leaked state useless after healing) |
+| Integrity / no transplanting | AEAD with `AD || header` | `ratchet.test.ts` (tampering rejected) |
+| Out-of-order tolerance, bounded memory | Skipped-key store with `MAX_SKIP` | `ratchet.test.ts` |
+| Group sender authenticity | Ed25519 signature per message | `senderkey.test.ts` |
+| Replay resistance in groups | Monotonic iteration, consumed keys | `senderkey.test.ts` |
+| Key-server MITM detection | Safety numbers from both identity keys | `session.test.ts` |
+
+### 4.6 Known limitations
+
+* **Metadata** (participants, timing, sizes) is visible to the server by design.
+* **Multi-device** is supported by the data model (bundles are per device) but the reference web
+  client encrypts to a peer's most recently active device only.
+* Messages are not padded; ciphertext length leaks plaintext length within 16 bytes.
+* The web client's key store is only as safe as the browser profile; there is no secure enclave.
+* Deniability (as in Signal's X3DH) holds for pairwise sessions but group messages are signed.
+* No formal verification has been performed; the implementation follows the published
+  specifications closely and is covered by property-based tests.
+
+## 5. Reporting
+
+Please report vulnerabilities privately to the maintainer (see repository profile) rather than
+through public issues.

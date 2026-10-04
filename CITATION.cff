@@ -1,0 +1,56 @@
+cff-version: 1.2.0
+message: "If you use ChatVerse in academic work, please cite it as below."
+title: "ChatVerse: an end-to-end encrypted real-time messaging platform with ordered, idempotent delivery and reproducible benchmarks"
+type: software
+authors:
+  - family-names: Praveen
+    given-names: Satvik
+    email: satvikpraveen707@gmail.com
+repository-code: "https://github.com/SatvikPraveen/ChatVerse"
+license: MIT
+version: 2.0.0
+date-released: 2026-10-03
+keywords:
+  - real-time messaging
+  - end-to-end encryption
+  - double ratchet
+  - X3DH
+  - sender keys
+  - hybrid logical clock
+  - distributed systems
+  - benchmarks
+references:
+  - type: article
+    title: "Logical Physical Clocks and Consistent Snapshots in Globally Distributed Databases"
+    authors:
+      - family-names: Kulkarni
+        given-names: Sandeep S.
+      - family-names: Demirbas
+        given-names: Murat
+      - family-names: Madappa
+        given-names: Deepak
+      - family-names: Avva
+        given-names: Bharadwaj
+      - family-names: Leone
+        given-names: Marcelo
+    year: 2014
+    conference:
+      name: "OPODIS"
+  - type: generic
+    title: "The X3DH Key Agreement Protocol"
+    authors:
+      - family-names: Marlinspike
+        given-names: Moxie
+      - family-names: Perrin
+        given-names: Trevor
+    year: 2016
+    url: "https://signal.org/docs/specifications/x3dh/"
+  - type: generic
+    title: "The Double Ratchet Algorithm"
+    authors:
+      - family-names: Perrin
+        given-names: Trevor
+      - family-names: Marlinspike
+        given-names: Moxie
+    year: 2016
+    url: "https://signal.org/docs/specifications/doubleratchet/"
