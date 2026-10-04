@@ -24,19 +24,43 @@ export function createApp(deps: Deps, services: Services): Express {
   app.set('trust proxy', deps.env.TRUST_PROXY ? 1 : false);
 
   app.use(requestId);
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(cors({ origin: deps.env.CORS_ORIGINS, credentials: true, exposedHeaders: ['X-Request-Id', 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'] }));
+  app.use(
+    helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }),
+  );
+  app.use(
+    cors({
+      origin: deps.env.CORS_ORIGINS,
+      credentials: true,
+      exposedHeaders: [
+        'X-Request-Id',
+        'RateLimit-Limit',
+        'RateLimit-Remaining',
+        'RateLimit-Reset',
+        'Retry-After',
+      ],
+    }),
+  );
   app.use(compression());
   app.use(express.json({ limit: '256kb' }));
   if (deps.env.NODE_ENV !== 'test') {
-    app.use(pinoHttp({ logger: deps.logger, genReqId: (req) => req.id ?? '', autoLogging: { ignore: (req) => Boolean(req.url?.startsWith('/health') || req.url === '/metrics') } }));
+    app.use(
+      pinoHttp({
+        logger: deps.logger,
+        genReqId: (req) => req.id ?? '',
+        autoLogging: {
+          ignore: (req) => Boolean(req.url?.startsWith('/health') || req.url === '/metrics'),
+        },
+      }),
+    );
   }
 
   // Latency histogram per matched route (not per raw URL, to keep cardinality bounded).
   app.use((req, res, next) => {
     const end = deps.metrics.httpRequestDuration.startTimer();
     res.on('finish', () => {
-      const route = req.route?.path ? `${req.baseUrl}${req.route.path}` : req.baseUrl || req.path.split('/').slice(0, 3).join('/');
+      const route = req.route?.path
+        ? `${req.baseUrl}${req.route.path}`
+        : req.baseUrl || req.path.split('/').slice(0, 3).join('/');
       end({ method: req.method, route, status: String(res.statusCode) });
     });
     next();

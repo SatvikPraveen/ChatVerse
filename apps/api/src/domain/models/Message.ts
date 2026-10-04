@@ -61,11 +61,20 @@ const messageSchema = new Schema<MessageDoc>(
     seq: { type: Number, required: true },
     clientMsgId: { type: String, required: true },
     senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    kind: { type: String, enum: ['text', 'image', 'file', 'audio', 'video', 'system', 'encrypted'], required: true },
+    kind: {
+      type: String,
+      enum: ['text', 'image', 'file', 'audio', 'video', 'system', 'encrypted'],
+      required: true,
+    },
     text: { type: String, default: null },
     encrypted: {
       type: new Schema<EncryptedPayload>(
-        { v: { type: Number, required: true }, suite: { type: String, required: true }, header: { type: String, required: true }, ciphertext: { type: String, required: true } },
+        {
+          v: { type: Number, required: true },
+          suite: { type: String, required: true },
+          header: { type: String, required: true },
+          ciphertext: { type: String, required: true },
+        },
         { _id: false },
       ),
       default: null,
@@ -73,7 +82,12 @@ const messageSchema = new Schema<MessageDoc>(
     attachments: { type: [attachmentSchema], default: [] },
     replyTo: { type: Schema.Types.ObjectId, ref: 'Message', default: null },
     reactions: {
-      type: [new Schema<ReactionDoc>({ emoji: { type: String, required: true }, userIds: [{ type: Schema.Types.ObjectId }] }, { _id: false })],
+      type: [
+        new Schema<ReactionDoc>(
+          { emoji: { type: String, required: true }, userIds: [{ type: Schema.Types.ObjectId }] },
+          { _id: false },
+        ),
+      ],
       default: [],
     },
     editedAt: { type: Date, default: null },
@@ -105,7 +119,13 @@ export async function ensureRetentionIndex(retentionDays: number): Promise<void>
 }
 
 export function toAttachment(a: AttachmentEmbed): Attachment {
-  const out: Attachment = { id: a.id.toString(), name: a.name, size: a.size, mimeType: a.mimeType, url: a.url };
+  const out: Attachment = {
+    id: a.id.toString(),
+    name: a.name,
+    size: a.size,
+    mimeType: a.mimeType,
+    url: a.url,
+  };
   if (a.width !== undefined) out.width = a.width;
   if (a.height !== undefined) out.height = a.height;
   if (a.durationMs !== undefined) out.durationMs = a.durationMs;
@@ -123,10 +143,22 @@ export function toMessage(m: MessageDoc): Message {
     senderId: m.senderId.toString(),
     kind: m.kind,
     text: deleted ? null : (m.text ?? null),
-    encrypted: deleted ? null : m.encrypted ? { v: 1, suite: m.encrypted.suite, header: m.encrypted.header, ciphertext: m.encrypted.ciphertext } : null,
+    encrypted: deleted
+      ? null
+      : m.encrypted
+        ? {
+            v: 1,
+            suite: m.encrypted.suite,
+            header: m.encrypted.header,
+            ciphertext: m.encrypted.ciphertext,
+          }
+        : null,
     attachments: deleted ? [] : m.attachments.map(toAttachment),
     replyTo: m.replyTo ? m.replyTo.toString() : null,
-    reactions: m.reactions.map((r) => ({ emoji: r.emoji, userIds: r.userIds.map((u) => u.toString()) })),
+    reactions: m.reactions.map((r) => ({
+      emoji: r.emoji,
+      userIds: r.userIds.map((u) => u.toString()),
+    })),
     editedAt: toIso(m.editedAt),
     deletedAt: toIso(m.deletedAt),
     hlc: m.hlc,

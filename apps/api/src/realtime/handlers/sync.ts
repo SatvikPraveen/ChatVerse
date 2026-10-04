@@ -8,7 +8,10 @@ import type { GatewayContext, AppSocket } from '../types.js';
  * dense, the client can tell exactly when it has caught up (headSeq) without any timestamps.
  */
 export function bindSyncHandlers(ctx: GatewayContext, socket: AppSocket, bind: EventBinder): void {
-  socket.on('sync:pull', bind.ack('sync:pull', syncPullSchema, async ({ conversationId, afterSeq, limit }) =>
-    ctx.services.messages.sync(conversationId, socket.data.userId, afterSeq, limit as number),
-  ));
+  socket.on(
+    'sync:pull',
+    bind.ack('sync:pull', syncPullSchema, async ({ conversationId, afterSeq, limit }) =>
+      ctx.services.messages.sync(conversationId, socket.data.userId, afterSeq, limit as number),
+    ),
+  );
 }

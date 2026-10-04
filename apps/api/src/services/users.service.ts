@@ -44,7 +44,11 @@ export function createUsersService() {
         };
         walk('settings', input.settings as Record<string, unknown>);
       }
-      const user = await User.findOneAndUpdate({ _id: toObjectId(userId), deletedAt: null }, { $set }, { new: true });
+      const user = await User.findOneAndUpdate(
+        { _id: toObjectId(userId), deletedAt: null },
+        { $set },
+        { new: true },
+      );
       if (!user) throw notFound('User');
       return toUserProfile(user);
     },

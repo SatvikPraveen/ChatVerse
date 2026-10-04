@@ -21,10 +21,18 @@ export function errorHandler(deps: Pick<Deps, 'logger' | 'env'>): ErrorRequestHa
       for (const issue of err.issues) fields[issue.path.join('.') || '_'] = issue.message;
       appErr = new AppError(ErrorCode.VALIDATION_ERROR, 'Request failed validation', { fields });
     } else if (isBodyParserError(err)) {
-      appErr = err.type === 'entity.too.large' ? new AppError(ErrorCode.PAYLOAD_TOO_LARGE) : new AppError(ErrorCode.VALIDATION_ERROR, 'Malformed request body');
+      appErr =
+        err.type === 'entity.too.large'
+          ? new AppError(ErrorCode.PAYLOAD_TOO_LARGE)
+          : new AppError(ErrorCode.VALIDATION_ERROR, 'Malformed request body');
     } else {
       deps.logger.error({ err, requestId, path: req.path }, 'unhandled error');
-      appErr = new AppError(ErrorCode.INTERNAL, deps.env.NODE_ENV === 'production' ? 'Internal server error' : String((err as Error)?.message ?? err));
+      appErr = new AppError(
+        ErrorCode.INTERNAL,
+        deps.env.NODE_ENV === 'production'
+          ? 'Internal server error'
+          : String((err as Error)?.message ?? err),
+      );
     }
     if (appErr.status >= 500) deps.logger.error({ err: appErr, requestId }, appErr.message);
     const body: ApiResponse<never> = { ok: false, error: appErr.toApiError(requestId) };
@@ -33,5 +41,11 @@ export function errorHandler(deps: Pick<Deps, 'logger' | 'env'>): ErrorRequestHa
 }
 
 function isBodyParserError(err: unknown): err is { type: string; status: number } {
-  return typeof err === 'object' && err !== null && 'type' in err && typeof (err as { type: unknown }).type === 'string' && 'status' in err;
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'type' in err &&
+    typeof (err as { type: unknown }).type === 'string' &&
+    'status' in err
+  );
 }

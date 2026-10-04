@@ -6,9 +6,16 @@ const R = 8;
 const P = 1;
 const KEY_LEN = 64;
 
-function derive(password: string, salt: Buffer, keyLen: number, options: ScryptOptions): Promise<Buffer> {
+function derive(
+  password: string,
+  salt: Buffer,
+  keyLen: number,
+  options: ScryptOptions,
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    scrypt(password.normalize('NFKC'), salt, keyLen, options, (err, key) => (err ? reject(err) : resolve(key)));
+    scrypt(password.normalize('NFKC'), salt, keyLen, options, (err, key) =>
+      err ? reject(err) : resolve(key),
+    );
   });
 }
 
@@ -24,6 +31,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
   if (algo !== 'scrypt' || !n || !r || !p || !saltB64 || !hashB64) return false;
   const expected = Buffer.from(hashB64, 'base64url');
   const params = { N: Number(n), r: Number(r), p: Number(p) };
-  const key = await derive(password, Buffer.from(saltB64, 'base64url'), expected.length, { ...params, maxmem: 128 * params.N * params.r * 2 });
+  const key = await derive(password, Buffer.from(saltB64, 'base64url'), expected.length, {
+    ...params,
+    maxmem: 128 * params.N * params.r * 2,
+  });
   return key.length === expected.length && timingSafeEqual(key, expected);
 }

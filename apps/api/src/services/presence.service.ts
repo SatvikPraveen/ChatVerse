@@ -40,7 +40,9 @@ export function createPresenceService(deps: Pick<Deps, 'redis' | 'hub'>) {
   async function contactsOf(userId: string): Promise<string[]> {
     const cached = await r.get(contactsKey(userId));
     if (cached) return JSON.parse(cached) as string[];
-    const convs = await ConversationModel.find({ 'participants.userId': toObjectId(userId) }).select('participants.userId');
+    const convs = await ConversationModel.find({
+      'participants.userId': toObjectId(userId),
+    }).select('participants.userId');
     const ids = new Set<string>();
     for (const c of convs) for (const p of c.participants) ids.add(p.userId.toString());
     ids.delete(userId);
@@ -52,7 +54,8 @@ export function createPresenceService(deps: Pick<Deps, 'redis' | 'hub'>) {
   async function snapshot(userId: string): Promise<Presence> {
     const [state, sockets] = await Promise.all([r.hgetall(stateKey(userId)), liveSockets(userId)]);
     const deviceCount = sockets.length;
-    const status = deviceCount === 0 ? 'offline' : ((state.status as PresenceStatus | undefined) ?? 'online');
+    const status =
+      deviceCount === 0 ? 'offline' : ((state.status as PresenceStatus | undefined) ?? 'online');
     return { userId, status, lastSeen: state.lastSeen ?? new Date(0).toISOString(), deviceCount };
   }
 
@@ -82,11 +85,20 @@ export function createPresenceService(deps: Pick<Deps, 'redis' | 'hub'>) {
     },
 
     async heartbeat(userId: string, socketId: string): Promise<void> {
-      await r.multi().set(hbKey(userId, socketId), '1', 'EX', HEARTBEAT_TTL_SEC).hset(stateKey(userId), { lastSeen: new Date().toISOString() }).exec();
+      await r
+        .multi()
+        .set(hbKey(userId, socketId), '1', 'EX', HEARTBEAT_TTL_SEC)
+        .hset(stateKey(userId), { lastSeen: new Date().toISOString() })
+        .exec();
     },
 
     async disconnect(userId: string, socketId: string): Promise<Presence> {
-      await r.multi().srem(socketsKey(userId), socketId).del(hbKey(userId, socketId)).hset(stateKey(userId), { lastSeen: new Date().toISOString() }).exec();
+      await r
+        .multi()
+        .srem(socketsKey(userId), socketId)
+        .del(hbKey(userId, socketId))
+        .hset(stateKey(userId), { lastSeen: new Date().toISOString() })
+        .exec();
       return broadcast(userId);
     },
 

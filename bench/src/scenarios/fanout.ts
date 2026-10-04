@@ -126,11 +126,12 @@ export const fanoutScenario: Scenario = {
     const sendStart = Date.now();
     await Promise.all(
       senders.map(async (sender, idx) => {
-        // de-phase senders so they do not all fire on the same tick
-        await sleep(Math.random() * intervalMs);
+        // De-phase senders with a per-sender offset so they do not all fire on the same tick.
+        // The offset must be part of the schedule, otherwise the first catch-up re-aligns them.
+        const phaseMs = Math.random() * intervalMs;
         const socket = sockets.get(sender.user.userId)!;
         for (let n = 0; n < totalPerSender; n++) {
-          const target = sendStart + n * intervalMs;
+          const target = sendStart + phaseMs + n * intervalMs;
           const wait = target - Date.now();
           if (wait > 0) await sleep(wait);
           const outcome = await sendTimed(socket, sender.conversationId, idx * totalPerSender + n);

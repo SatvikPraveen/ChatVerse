@@ -25,10 +25,22 @@ async function main(): Promise<void> {
   const passwordHash = await hashPassword(PASSWORD);
 
   const users = await Promise.all(
-    USERS.map((u) => User.findOneAndUpdate({ username: u.username }, { $setOnInsert: { ...u, passwordHash } }, { upsert: true, new: true })),
+    USERS.map((u) =>
+      User.findOneAndUpdate(
+        { username: u.username },
+        { $setOnInsert: { ...u, passwordHash } },
+        { upsert: true, new: true },
+      ),
+    ),
   );
-  const [alice, bob, carol] = users as [typeof users[number], typeof users[number], typeof users[number]];
-  console.warn(`users: ${users.map((u) => `${u!.username} (${u!._id})`).join(', ')} — password "${PASSWORD}"`);
+  const [alice, bob, carol] = users as [
+    (typeof users)[number],
+    (typeof users)[number],
+    (typeof users)[number],
+  ];
+  console.warn(
+    `users: ${users.map((u) => `${u!.username} (${u!._id})`).join(', ')} — password "${PASSWORD}"`,
+  );
 
   const key = directKey(alice!._id.toString(), bob!._id.toString());
   let direct = await ConversationModel.findOne({ directKey: key });
@@ -47,14 +59,26 @@ async function main(): Promise<void> {
     let seq = 0;
     for (const [sender, text] of texts) {
       seq += 1;
-      await MessageModel.create({ conversationId: direct._id, seq, clientMsgId: uuid(), senderId: sender!._id, kind: 'text', text, hlc: clock.tick() });
+      await MessageModel.create({
+        conversationId: direct._id,
+        seq,
+        clientMsgId: uuid(),
+        senderId: sender!._id,
+        kind: 'text',
+        text,
+        hlc: clock.tick(),
+      });
     }
     direct.headSeq = seq;
     await direct.save();
   }
 
   const groupName = 'ChatVerse Research';
-  let group = await ConversationModel.findOne({ kind: 'group', name: groupName, createdBy: alice!._id });
+  let group = await ConversationModel.findOne({
+    kind: 'group',
+    name: groupName,
+    createdBy: alice!._id,
+  });
   if (!group) {
     group = await ConversationModel.create({
       kind: 'group',
@@ -67,7 +91,15 @@ async function main(): Promise<void> {
         { userId: carol!._id, role: 'member' },
       ],
     });
-    await MessageModel.create({ conversationId: group._id, seq: 1, clientMsgId: uuid(), senderId: carol!._id, kind: 'text', text: 'Welcome to the research group 👋', hlc: clock.tick() });
+    await MessageModel.create({
+      conversationId: group._id,
+      seq: 1,
+      clientMsgId: uuid(),
+      senderId: carol!._id,
+      kind: 'text',
+      text: 'Welcome to the research group 👋',
+      hlc: clock.tick(),
+    });
     group.headSeq = 1;
     await group.save();
   }

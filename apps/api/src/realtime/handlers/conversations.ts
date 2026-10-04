@@ -8,7 +8,11 @@ import type { GatewayContext, AppSocket } from '../types.js';
  * mostly a way for a client to confirm membership and learn the current head sequence number
  * (the starting point for gap detection). `leave` only affects this socket's subscription.
  */
-export function bindConversationHandlers(ctx: GatewayContext, socket: AppSocket, bind: EventBinder): void {
+export function bindConversationHandlers(
+  ctx: GatewayContext,
+  socket: AppSocket,
+  bind: EventBinder,
+): void {
   socket.on(
     'conversation:join',
     bind.ack('conversation:join', joinConversationSchema, async ({ conversationId }) => {
@@ -21,7 +25,8 @@ export function bindConversationHandlers(ctx: GatewayContext, socket: AppSocket,
   socket.on(
     'conversation:leave',
     bind.fire('conversation:leave', joinConversationSchema, async ({ conversationId }) => {
-      if (!socket.rooms.has(ROOMS.conversation(conversationId))) throw new AppError(ErrorCode.NOT_FOUND, 'Not subscribed to that conversation');
+      if (!socket.rooms.has(ROOMS.conversation(conversationId)))
+        throw new AppError(ErrorCode.NOT_FOUND, 'Not subscribed to that conversation');
       await socket.leave(ROOMS.conversation(conversationId));
     }),
   );

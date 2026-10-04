@@ -27,10 +27,16 @@ const deviceKeysSchema = new Schema<DeviceKeysDoc>(
     identityKey: { type: String, required: true },
     signingKey: { type: String, required: true },
     signedPreKey: {
-      type: new Schema<SignedPreKey>({ id: Number, publicKey: String, signature: String }, { _id: false }),
+      type: new Schema<SignedPreKey>(
+        { id: Number, publicKey: String, signature: String },
+        { _id: false },
+      ),
       required: true,
     },
-    oneTimePreKeys: { type: [new Schema<OneTimePreKey>({ id: Number, publicKey: String }, { _id: false })], default: [] },
+    oneTimePreKeys: {
+      type: [new Schema<OneTimePreKey>({ id: Number, publicKey: String }, { _id: false })],
+      default: [],
+    },
     lastActiveAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true, versionKey: false },

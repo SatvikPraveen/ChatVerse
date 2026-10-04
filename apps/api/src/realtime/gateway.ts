@@ -53,11 +53,17 @@ export function createGateway(httpServer: HttpServer, deps: Deps, services: Serv
   io.use(async (socket, next) => {
     try {
       const auth = socket.handshake.auth as { token?: unknown; deviceId?: unknown };
-      if (typeof auth.token !== 'string') throw new AppError(ErrorCode.UNAUTHENTICATED, 'Missing auth.token');
+      if (typeof auth.token !== 'string')
+        throw new AppError(ErrorCode.UNAUTHENTICATED, 'Missing auth.token');
       const claims = services.auth.tokens.verifyAccess(auth.token);
-      if (!(await services.auth.tokens.isSessionActive(claims.sid))) throw new AppError(ErrorCode.TOKEN_INVALID, 'Session revoked');
+      if (!(await services.auth.tokens.isSessionActive(claims.sid)))
+        throw new AppError(ErrorCode.TOKEN_INVALID, 'Session revoked');
       const device = deviceIdSchema.safeParse(auth.deviceId);
-      socket.data = { userId: claims.sub, deviceId: device.success ? device.data : claims.did, sessionId: claims.sid };
+      socket.data = {
+        userId: claims.sub,
+        deviceId: device.success ? device.data : claims.did,
+        sessionId: claims.sid,
+      };
       next();
     } catch (err) {
       const appErr = err instanceof AppError ? err : new AppError(ErrorCode.UNAUTHENTICATED);
@@ -83,7 +89,9 @@ export function createGateway(httpServer: HttpServer, deps: Deps, services: Serv
 
     socket.on('disconnect', (reason) => {
       metrics.socketConnections.dec({ node: deps.env.NODE_ID });
-      services.presence.disconnect(userId, socket.id).catch((err) => logger.warn({ err, userId }, 'presence disconnect failed'));
+      services.presence
+        .disconnect(userId, socket.id)
+        .catch((err) => logger.warn({ err, userId }, 'presence disconnect failed'));
       services.users.touchLastSeen(userId).catch(() => undefined);
       logger.debug({ userId, socketId: socket.id, reason }, 'socket disconnected');
     });
@@ -103,10 +111,16 @@ export function createGateway(httpServer: HttpServer, deps: Deps, services: Serv
         nodeId: deps.env.NODE_ID,
         protocolVersion: PROTOCOL_VERSION,
       });
-      logger.debug({ userId, socketId: socket.id, rooms: conversationIds.length }, 'socket connected');
+      logger.debug(
+        { userId, socketId: socket.id, rooms: conversationIds.length },
+        'socket connected',
+      );
     } catch (err) {
       logger.error({ err, userId }, 'socket setup failed');
-      socket.emit('protocol:error', (err instanceof AppError ? err : new AppError(ErrorCode.INTERNAL)).toApiError());
+      socket.emit(
+        'protocol:error',
+        (err instanceof AppError ? err : new AppError(ErrorCode.INTERNAL)).toApiError(),
+      );
       socket.disconnect(true);
     }
   });

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "scenario": "http",
+  "startedAt": "2026-10-04T01:35:04.889Z",
+  "finishedAt": "2026-10-04T01:35:35.007Z",
+  "wallClockMs": 30118,
+  "gitSha": "18951d7",
+  "config": {
+    "scenario": "http",
+    "url": "http://localhost:4000",
+    "users": 100,
+    "groups": 10,
+    "groupSize": 10,
+    "rate": 1,
+    "duration": 15,
+    "connections": 100,
+    "rampMs": 5000,
+    "outageMs": 3000,
+    "out": "results/baseline-http.json",
+    "dryRun": false,
+    "label": "native-1"
+  },
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpus": 10,
+    "cpuModel": "Apple M5",
+    "totalMemBytes": 25769803776,
+    "node": "v20.20.0"
+  },
+  "result": {
+    "kind": "http",
+    "endpoints": [
+      {
+        "url": "/health/live",
+        "requests": 203433,
+        "errors": 0,
+        "non2xx": 0,
+        "requestsPerSec": 13563.6,
+        "bytesPerSec": 11920998.4,
+        "latencyMs": {
+          "count": 203433,
+          "min": 3,
+          "max": 383,
+          "mean": 6.93,
+          "stddev": 6.31,
+          "p50": 6,
+          "p90": 8,
+          "p95": 12,
+          "p99": 17,
+          "p999": 68
+        }
+      },
+      {
+        "url": "/api/v1/conversations",
+        "requests": 55750,
+        "errors": 0,
+        "non2xx": 0,
+        "requestsPerSec": 3717,
+        "bytesPerSec": 3549320.54,
+        "latencyMs": {
+          "count": 55750,
+          "min": 11,
+          "max": 293,
+          "mean": 26.39,
+          "stddev": 11.44,
+          "p50": 23,
+          "p90": 40,
+          "p95": 54,
+          "p99": 63,
+          "p999": 125
+        }
+      }
+    ]
+  }
+}

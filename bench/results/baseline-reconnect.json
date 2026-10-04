@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "scenario": "reconnect",
+  "startedAt": "2026-10-04T01:35:42.829Z",
+  "finishedAt": "2026-10-04T01:36:21.642Z",
+  "wallClockMs": 38813,
+  "gitSha": "18951d7",
+  "config": {
+    "scenario": "reconnect",
+    "url": "http://localhost:4000",
+    "users": 100,
+    "groups": 10,
+    "groupSize": 10,
+    "rate": 5,
+    "duration": 30,
+    "connections": 50,
+    "rampMs": 5000,
+    "outageMs": 3000,
+    "out": "results/baseline-reconnect.json",
+    "dryRun": false,
+    "label": "native-1"
+  },
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpus": 10,
+    "cpuModel": "Apple M5",
+    "totalMemBytes": 25769803776,
+    "node": "v20.20.0"
+  },
+  "result": {
+    "kind": "reconnect",
+    "clients": 50,
+    "disconnected": 25,
+    "expected": 5950,
+    "deliveredLive": 5550,
+    "recoveredViaSync": 400,
+    "lost": 0,
+    "duplicates": 0,
+    "orderingViolations": 0,
+    "gapRecoveryMs": {
+      "count": 25,
+      "min": 34,
+      "max": 53,
+      "mean": 41.88,
+      "stddev": 5.72,
+      "p50": 40,
+      "p90": 51,
+      "p95": 51,
+      "p99": 53,
+      "p999": 53
+    },
+    "reconnectMs": {
+      "count": 25,
+      "min": 28,
+      "max": 48,
+      "mean": 36.24,
+      "stddev": 6.54,
+      "p50": 34,
+      "p90": 47,
+      "p95": 47,
+      "p99": 48,
+      "p999": 48
+    }
+  }
+}

@@ -4,7 +4,12 @@ import type { Deps } from '../deps.js';
 import type { Services } from '../services/index.js';
 import type { IoServer } from './hub.js';
 
-export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+export type AppSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>;
 
 export interface GatewayContext {
   io: IoServer;

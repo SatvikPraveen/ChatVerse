@@ -30,7 +30,10 @@ export interface RunningServer {
  * Assemble and start every component. Used by both `index.ts` (production entry) and the test
  * suite, so the wiring under test is exactly the wiring in production.
  */
-export async function startServer(overrides: Partial<Env> = {}, options: { connectDb?: boolean } = {}): Promise<RunningServer> {
+export async function startServer(
+  overrides: Partial<Env> = {},
+  options: { connectDb?: boolean } = {},
+): Promise<RunningServer> {
   const env: Env = { ...loadEnv(), ...overrides };
   const logger = createLogger(env);
   const metrics = createMetrics(env.NODE_ID, env.NODE_ENV !== 'test');
@@ -38,7 +41,16 @@ export async function startServer(overrides: Partial<Env> = {}, options: { conne
   if (options.connectDb !== false) await connectMongo(env, logger);
   await ensureRetentionIndex(env.MESSAGE_RETENTION_DAYS);
 
-  const deps: Deps = { env, logger, redis, metrics, clock: createClock(env.NODE_ID), hub: new RealtimeHub(), startedAt: new Date(), version: VERSION };
+  const deps: Deps = {
+    env,
+    logger,
+    redis,
+    metrics,
+    clock: createClock(env.NODE_ID),
+    hub: new RealtimeHub(),
+    startedAt: new Date(),
+    version: VERSION,
+  };
   const services = createServices(deps);
   const app = createApp(deps, services);
   const httpServer = createServer(app);
@@ -50,7 +62,10 @@ export async function startServer(overrides: Partial<Env> = {}, options: { conne
   });
   const address = httpServer.address();
   const port = typeof address === 'object' && address ? address.port : env.PORT;
-  logger.info({ port, host: env.HOST, nodeId: env.NODE_ID, redisShared: redis.shared }, 'server listening');
+  logger.info(
+    { port, host: env.HOST, nodeId: env.NODE_ID, redisShared: redis.shared },
+    'server listening',
+  );
 
   let stopping = false;
   return {

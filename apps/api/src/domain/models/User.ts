@@ -72,7 +72,10 @@ export function toUserProfile(u: UserDoc): UserProfile {
     settings: {
       theme: u.settings.theme,
       notifications: { push: u.settings.notifications.push, sound: u.settings.notifications.sound },
-      privacy: { showOnlineStatus: u.settings.privacy.showOnlineStatus, readReceipts: u.settings.privacy.readReceipts },
+      privacy: {
+        showOnlineStatus: u.settings.privacy.showOnlineStatus,
+        readReceipts: u.settings.privacy.readReceipts,
+      },
     },
     updatedAt: toIso(u.updatedAt) ?? u.createdAt.toISOString(),
   };

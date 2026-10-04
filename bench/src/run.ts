@@ -25,6 +25,7 @@ Options:
   --connections <n>    http: concurrent connections; reconnect: receivers (default 50)
   --ramp <ms>          socket connection ramp-up window         (default 5000)
   --outage <ms>        reconnect: time clients stay away        (default 3000)
+  --label <text>       environment tag recorded with the run (e.g. native-1, docker-2)
   --out <file>         JSON result path (default results/<timestamp>-<scenario>.json)
   --no-out             do not write a JSON result
   --dry-run            synthetic data; exercises CLI, stats and report without a server
@@ -46,6 +47,7 @@ function parseConfig(argv: string[]): BenchConfig {
       ramp: { type: 'string', default: '5000' },
       outage: { type: 'string', default: '3000' },
       out: { type: 'string' },
+      label: { type: 'string' },
       'no-out': { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
@@ -81,6 +83,7 @@ function parseConfig(argv: string[]): BenchConfig {
     outageMs: int('outage', values.outage!, 0),
     out: values['no-out'] ? null : (values.out ?? `results/${stamp}-${scenario}.json`),
     dryRun: values['dry-run']!,
+    ...(values.label ? { label: values.label } : {}),
   };
 }
 

@@ -8,7 +8,17 @@ export function createLogger(env: Pick<Env, 'NODE_ENV' | 'LOG_LEVEL' | 'NODE_ID'
   return pino({
     level: env.NODE_ENV === 'test' ? 'silent' : env.LOG_LEVEL,
     base: { nodeId: env.NODE_ID },
-    redact: { paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.refreshToken'], censor: '[redacted]' },
-    ...(pretty ? { transport: { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss.l' } } } : {}),
+    redact: {
+      paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.refreshToken'],
+      censor: '[redacted]',
+    },
+    ...(pretty
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: { colorize: true, translateTime: 'HH:MM:ss.l' },
+          },
+        }
+      : {}),
   });
 }

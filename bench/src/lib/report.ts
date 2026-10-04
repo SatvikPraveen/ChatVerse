@@ -120,14 +120,14 @@ export function markdownReport(runs: BenchRun[]): string {
   if (fanout.length) {
     sections.push('## Fan-out (end-to-end delivery)', '');
     sections.push(
-      '| run | sha | users | groups×size | rate | dur | delivered | dup | order viol | e2e p50 | e2e p95 | e2e p99 | ack p50 | ack p99 | msg/s |',
+      '| run | label | sha | users | groups×size | rate | dur | delivered | dup | order viol | e2e p50 | e2e p95 | e2e p99 | ack p50 | ack p99 | msg/s |',
     );
-    sections.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+    sections.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of fanout) {
       const c = r.config;
       const x = r.result;
       sections.push(
-        `| ${r.startedAt} | ${r.gitSha ?? '-'} | ${c.users} | ${c.groups}×${c.groupSize} | ${c.rate}/s | ${c.duration}s | ${fmtPct(x.deliveryRatio)} | ${x.duplicates} | ${x.orderingViolations} | ${x.endToEndLatencyMs.p50.toFixed(1)} | ${x.endToEndLatencyMs.p95.toFixed(1)} | ${x.endToEndLatencyMs.p99.toFixed(1)} | ${x.ackLatencyMs.p50.toFixed(1)} | ${x.ackLatencyMs.p99.toFixed(1)} | ${x.deliveredPerSec.toFixed(0)} |`,
+        `| ${r.startedAt} | ${c.label ?? '-'} | ${r.gitSha ?? '-'} | ${c.users} | ${c.groups}×${c.groupSize} | ${c.rate}/s | ${c.duration}s | ${fmtPct(x.deliveryRatio)} | ${x.duplicates} | ${x.orderingViolations} | ${x.endToEndLatencyMs.p50.toFixed(1)} | ${x.endToEndLatencyMs.p95.toFixed(1)} | ${x.endToEndLatencyMs.p99.toFixed(1)} | ${x.ackLatencyMs.p50.toFixed(1)} | ${x.ackLatencyMs.p99.toFixed(1)} | ${x.deliveredPerSec.toFixed(0)} |`,
       );
     }
     sections.push('');
@@ -138,12 +138,14 @@ export function markdownReport(runs: BenchRun[]): string {
   >;
   if (http.length) {
     sections.push('## HTTP (autocannon)', '');
-    sections.push('| run | sha | endpoint | conns | dur | req/s | p50 | p95 | p99 | errors |');
-    sections.push('|---|---|---|---|---|---|---|---|---|---|');
+    sections.push(
+      '| run | label | sha | endpoint | conns | dur | req/s | p50 | p95 | p99 | errors |',
+    );
+    sections.push('|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of http) {
       for (const e of r.result.endpoints) {
         sections.push(
-          `| ${r.startedAt} | ${r.gitSha ?? '-'} | ${e.url} | ${r.config.connections} | ${r.config.duration}s | ${e.requestsPerSec.toFixed(0)} | ${e.latencyMs.p50.toFixed(1)} | ${e.latencyMs.p95.toFixed(1)} | ${e.latencyMs.p99.toFixed(1)} | ${e.errors + e.non2xx} |`,
+          `| ${r.startedAt} | ${r.config.label ?? '-'} | ${r.gitSha ?? '-'} | ${e.url} | ${r.config.connections} | ${r.config.duration}s | ${e.requestsPerSec.toFixed(0)} | ${e.latencyMs.p50.toFixed(1)} | ${e.latencyMs.p95.toFixed(1)} | ${e.latencyMs.p99.toFixed(1)} | ${e.errors + e.non2xx} |`,
         );
       }
     }
@@ -156,13 +158,13 @@ export function markdownReport(runs: BenchRun[]): string {
   if (reconnect.length) {
     sections.push('## Reconnect & gap recovery', '');
     sections.push(
-      '| run | sha | clients | outage | live | via sync | lost | dup | reconnect p50 | recovery p50 | recovery p99 |',
+      '| run | label | sha | clients | outage | live | via sync | lost | dup | reconnect p50 | recovery p50 | recovery p99 |',
     );
-    sections.push('|---|---|---|---|---|---|---|---|---|---|---|');
+    sections.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of reconnect) {
       const x = r.result;
       sections.push(
-        `| ${r.startedAt} | ${r.gitSha ?? '-'} | ${x.clients} | ${r.config.outageMs}ms | ${x.deliveredLive} | ${x.recoveredViaSync} | ${x.lost} | ${x.duplicates} | ${x.reconnectMs.p50.toFixed(1)} | ${x.gapRecoveryMs.p50.toFixed(1)} | ${x.gapRecoveryMs.p99.toFixed(1)} |`,
+        `| ${r.startedAt} | ${r.config.label ?? '-'} | ${r.gitSha ?? '-'} | ${x.clients} | ${r.config.outageMs}ms | ${x.deliveredLive} | ${x.recoveredViaSync} | ${x.lost} | ${x.duplicates} | ${x.reconnectMs.p50.toFixed(1)} | ${x.gapRecoveryMs.p50.toFixed(1)} | ${x.gapRecoveryMs.p99.toFixed(1)} |`,
       );
     }
     sections.push('');

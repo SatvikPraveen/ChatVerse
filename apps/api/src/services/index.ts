@@ -27,12 +27,25 @@ export function createServices(deps: Deps): Services {
   const auth = createAuthService(deps);
   const users = createUsersService();
   const presence = createPresenceService(deps);
-  const conversations = createConversationsService(deps, { membershipChanged: (ids) => presence.invalidateContacts(ids) });
+  const conversations = createConversationsService(deps, {
+    membershipChanged: (ids) => presence.invalidateContacts(ids),
+  });
   const sequencer = createSequencer(deps);
   const push = createPushService(deps, presence);
   const messages = createMessagesService(deps, conversations, sequencer, push);
   const receipts = createReceiptsService(deps, conversations);
   const keys = createKeysService();
   const uploads = createUploadsService(deps);
-  return { auth, users, conversations, sequencer, messages, receipts, presence, keys, push, uploads };
+  return {
+    auth,
+    users,
+    conversations,
+    sequencer,
+    messages,
+    receipts,
+    presence,
+    keys,
+    push,
+    uploads,
+  };
 }

@@ -24,4 +24,7 @@ const pushSubscriptionSchema = new Schema<PushSubscriptionDoc>(
 
 pushSubscriptionSchema.index({ userId: 1, endpoint: 1 }, { unique: true });
 
-export const PushSubscriptionModel = model<PushSubscriptionDoc>('PushSubscription', pushSubscriptionSchema);
+export const PushSubscriptionModel = model<PushSubscriptionDoc>(
+  'PushSubscription',
+  pushSubscriptionSchema,
+);

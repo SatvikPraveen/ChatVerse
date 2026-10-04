@@ -17,6 +17,8 @@ export interface BenchConfig {
   dryRun: boolean;
   /** Reconnect scenario: how long each disconnected client stays away. */
   outageMs: number;
+  /** Free-form tag describing the environment (e.g. "native-1", "docker-2"), shown in reports. */
+  label?: string;
 }
 
 export interface MachineInfo {

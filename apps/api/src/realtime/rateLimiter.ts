@@ -1,4 +1,9 @@
-import { ErrorCode, SOCKET_RATE_LIMITS, type Ack, type RateLimitedEvent } from '@chatverse/protocol';
+import {
+  ErrorCode,
+  SOCKET_RATE_LIMITS,
+  type Ack,
+  type RateLimitedEvent,
+} from '@chatverse/protocol';
 import { AppError } from '../lib/errors.js';
 
 interface Bucket {
@@ -32,5 +37,10 @@ export class SocketRateLimiter {
 }
 
 export function rateLimitedAck<T>(event: string, retryAfterMs: number): Ack<T> {
-  return { ok: false, error: new AppError(ErrorCode.RATE_LIMITED, `Rate limit exceeded for ${event}`, { retryAfterMs }).toApiError() };
+  return {
+    ok: false,
+    error: new AppError(ErrorCode.RATE_LIMITED, `Rate limit exceeded for ${event}`, {
+      retryAfterMs,
+    }).toApiError(),
+  };
 }

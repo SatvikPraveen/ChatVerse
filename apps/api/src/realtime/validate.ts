@@ -1,5 +1,10 @@
 import type { ZodError, ZodTypeAny, z } from 'zod';
-import { ErrorCode, SOCKET_RATE_LIMITS, type AckFn, type RateLimitedEvent } from '@chatverse/protocol';
+import {
+  ErrorCode,
+  SOCKET_RATE_LIMITS,
+  type AckFn,
+  type RateLimitedEvent,
+} from '@chatverse/protocol';
 import { AppError } from '../lib/errors.js';
 import type { GatewayContext, AppSocket } from './types.js';
 import { rateLimitedAck, SocketRateLimiter } from './rateLimiter.js';
@@ -8,9 +13,17 @@ type Handler<S extends ZodTypeAny, R> = (input: z.infer<S>, socket: AppSocket) =
 
 export interface EventBinder {
   /** Request/response event: validates, rate-limits, times, and always acknowledges. */
-  ack<S extends ZodTypeAny, R>(event: string, schema: S, handler: Handler<S, R>): (raw: unknown, ack?: AckFn<R>) => void;
+  ack<S extends ZodTypeAny, R>(
+    event: string,
+    schema: S,
+    handler: Handler<S, R>,
+  ): (raw: unknown, ack?: AckFn<R>) => void;
   /** Fire-and-forget event: failures are reported on `protocol:error`. */
-  fire<S extends ZodTypeAny>(event: string, schema: S, handler: Handler<S, void>): (raw: unknown) => void;
+  fire<S extends ZodTypeAny>(
+    event: string,
+    schema: S,
+    handler: Handler<S, void>,
+  ): (raw: unknown) => void;
 }
 
 function toAppError(err: unknown): AppError {
@@ -45,7 +58,8 @@ export function createBinder(ctx: GatewayContext, socket: AppSocket): EventBinde
 
   function report(err: unknown, event: string): AppError {
     const appErr = toAppError(err);
-    if (appErr.status >= 500) logger.error({ err, event, userId: socket.data.userId }, 'socket handler failed');
+    if (appErr.status >= 500)
+      logger.error({ err, event, userId: socket.data.userId }, 'socket handler failed');
     return appErr;
   }
 

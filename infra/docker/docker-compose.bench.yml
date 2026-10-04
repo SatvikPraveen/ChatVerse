@@ -31,6 +31,7 @@ x-api: &api
     # Bench clients legitimately exceed normal per-IP limits: they all come from one host.
     RATE_LIMIT_WINDOW_SEC: 60
     RATE_LIMIT_MAX: 100000
+    AUTH_RATE_LIMIT_MAX: 100000
     METRICS_ENABLED: 'true'
     MESSAGE_RETENTION_DAYS: 1
   depends_on:

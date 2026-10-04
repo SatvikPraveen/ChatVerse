@@ -24,14 +24,19 @@ describe('health & metrics', () => {
     const res = await ctx.api.get('/metrics').expect(200);
     expect(res.headers['content-type']).toContain('text/plain');
     expect(res.text).toContain('http_request_duration_seconds_bucket');
-    expect(res.text).toMatch(/http_request_duration_seconds_count\{[^}]*route="\/api\/v1\/users\/me"/);
+    expect(res.text).toMatch(
+      /http_request_duration_seconds_count\{[^}]*route="\/api\/v1\/users\/me"/,
+    );
     expect(res.text).toContain('socket_connections');
     expect(res.text).toContain('messages_sent_total');
   });
 
   it('answers unknown routes with the error envelope and a request id', async () => {
     const res = await ctx.api.get('/nope').set('X-Request-Id', 'req-123456789').expect(404);
-    expect(res.body).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: expect.any(String), requestId: 'req-123456789' } });
+    expect(res.body).toEqual({
+      ok: false,
+      error: { code: 'NOT_FOUND', message: expect.any(String), requestId: 'req-123456789' },
+    });
     expect(res.headers['x-request-id']).toBe('req-123456789');
   });
 

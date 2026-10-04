@@ -18,7 +18,12 @@ export function decodeCursor(raw: string | undefined): Cursor | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<Cursor>;
-    if (typeof parsed.t !== 'string' || typeof parsed.id !== 'string' || Number.isNaN(Date.parse(parsed.t))) throw new Error();
+    if (
+      typeof parsed.t !== 'string' ||
+      typeof parsed.id !== 'string' ||
+      Number.isNaN(Date.parse(parsed.t))
+    )
+      throw new Error();
     return { t: parsed.t, id: parsed.id };
   } catch {
     throw new AppError(ErrorCode.VALIDATION_ERROR, 'Malformed cursor', { cursor: 'invalid' });

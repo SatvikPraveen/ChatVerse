@@ -44,8 +44,17 @@ describe('password hashing', () => {
 
 describe('env', () => {
   it('lists every problem at once and treats empty strings as unset', () => {
-    expect(() => loadEnv({ MONGODB_URI: '', JWT_ACCESS_SECRET: 'short' })).toThrow(/MONGODB_URI[\s\S]*JWT_ACCESS_SECRET[\s\S]*JWT_REFRESH_SECRET/);
-    const env = loadEnv({ MONGODB_URI: 'mongodb://x', JWT_ACCESS_SECRET: 'a'.repeat(32), JWT_REFRESH_SECRET: 'b'.repeat(32), CORS_ORIGINS: 'http://a, http://b', TRUST_PROXY: 'yes', REDIS_URL: '' });
+    expect(() => loadEnv({ MONGODB_URI: '', JWT_ACCESS_SECRET: 'short' })).toThrow(
+      /MONGODB_URI[\s\S]*JWT_ACCESS_SECRET[\s\S]*JWT_REFRESH_SECRET/,
+    );
+    const env = loadEnv({
+      MONGODB_URI: 'mongodb://x',
+      JWT_ACCESS_SECRET: 'a'.repeat(32),
+      JWT_REFRESH_SECRET: 'b'.repeat(32),
+      CORS_ORIGINS: 'http://a, http://b',
+      TRUST_PROXY: 'yes',
+      REDIS_URL: '',
+    });
     expect(env.CORS_ORIGINS).toEqual(['http://a', 'http://b']);
     expect(env.TRUST_PROXY).toBe(true);
     expect(env.REDIS_URL).toBeUndefined();

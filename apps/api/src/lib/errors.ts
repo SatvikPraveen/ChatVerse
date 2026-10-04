@@ -42,10 +42,13 @@ function defaultMessage(code: ErrorCode): string {
   }
 }
 
-export const notFound = (what = 'Resource'): AppError => new AppError(ErrorCode.NOT_FOUND, `${what} not found`);
+export const notFound = (what = 'Resource'): AppError =>
+  new AppError(ErrorCode.NOT_FOUND, `${what} not found`);
 export const forbidden = (message?: string): AppError => new AppError(ErrorCode.FORBIDDEN, message);
 
 /** MongoDB duplicate-key error (E11000). */
-export function isDuplicateKeyError(err: unknown): err is { code: 11000; keyPattern?: Record<string, number> } {
+export function isDuplicateKeyError(
+  err: unknown,
+): err is { code: 11000; keyPattern?: Record<string, number> } {
   return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
 }

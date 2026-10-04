@@ -41,32 +41,45 @@ export function createTokenService(deps: Pick<Deps, 'env' | 'redis'>) {
 
   return {
     signAccess(claims: AccessClaims): string {
-      return jwt.sign(claims, env.JWT_ACCESS_SECRET, { expiresIn: env.ACCESS_TOKEN_TTL_SEC, jwtid: uuid() });
+      return jwt.sign(claims, env.JWT_ACCESS_SECRET, {
+        expiresIn: env.ACCESS_TOKEN_TTL_SEC,
+        jwtid: uuid(),
+      });
     },
 
     verifyAccess(token: string): AccessClaims {
       try {
         const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as jwt.JwtPayload;
-        if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || typeof payload.did !== 'string') {
+        if (
+          typeof payload.sub !== 'string' ||
+          typeof payload.sid !== 'string' ||
+          typeof payload.did !== 'string'
+        ) {
           throw new AppError(ErrorCode.TOKEN_INVALID, 'Malformed token');
         }
         return { sub: payload.sub, sid: payload.sid, did: payload.did };
       } catch (err) {
         if (err instanceof AppError) throw err;
-        if (err instanceof jwt.TokenExpiredError) throw new AppError(ErrorCode.TOKEN_EXPIRED, 'Access token expired');
+        if (err instanceof jwt.TokenExpiredError)
+          throw new AppError(ErrorCode.TOKEN_EXPIRED, 'Access token expired');
         throw new AppError(ErrorCode.TOKEN_INVALID, 'Invalid access token');
       }
     },
 
     /** Open a new family and return its first refresh token. */
-    async openSession(userId: string, deviceId: string): Promise<{ sid: string; refreshToken: string }> {
+    async openSession(
+      userId: string,
+      deviceId: string,
+    ): Promise<{ sid: string; refreshToken: string }> {
       const sid = uuid();
       const refreshToken = await issueRefresh(userId, sid, deviceId);
       return { sid, refreshToken };
     },
 
     /** Rotate: validates, retires the presented token and issues its successor. */
-    async rotate(presented: string): Promise<{ userId: string; sid: string; deviceId: string; refreshToken: string }> {
+    async rotate(
+      presented: string,
+    ): Promise<{ userId: string; sid: string; deviceId: string; refreshToken: string }> {
       const h = hashToken(presented);
       const sid = await r.get(tokKey(h));
       if (!sid) throw new AppError(ErrorCode.TOKEN_INVALID, 'Refresh token is invalid or expired');

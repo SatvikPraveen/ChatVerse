@@ -1,8 +1,18 @@
 import type { Server } from 'socket.io';
-import type { ClientToServerEvents, ServerEventName, ServerToClientEvents, SocketData } from '@chatverse/protocol';
+import type {
+  ClientToServerEvents,
+  ServerEventName,
+  ServerToClientEvents,
+  SocketData,
+} from '@chatverse/protocol';
 import { ROOMS } from '@chatverse/protocol';
 
-export type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+export type IoServer = Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>;
 
 type Payload<E extends ServerEventName> = Parameters<ServerToClientEvents[E]>[0];
 
@@ -24,7 +34,11 @@ export class RealtimeHub {
     return this.io;
   }
 
-  toConversation<E extends ServerEventName>(conversationId: string, event: E, payload: Payload<E>): void {
+  toConversation<E extends ServerEventName>(
+    conversationId: string,
+    event: E,
+    payload: Payload<E>,
+  ): void {
     this.emitTo(ROOMS.conversation(conversationId), event, payload);
   }
 
@@ -32,7 +46,11 @@ export class RealtimeHub {
     this.emitTo(ROOMS.user(userId), event, payload);
   }
 
-  toUsers<E extends ServerEventName>(userIds: Iterable<string>, event: E, payload: Payload<E>): void {
+  toUsers<E extends ServerEventName>(
+    userIds: Iterable<string>,
+    event: E,
+    payload: Payload<E>,
+  ): void {
     const rooms = [...new Set(userIds)].map(ROOMS.user);
     if (rooms.length === 0) return;
     this.emitTo(rooms, event, payload);
@@ -47,7 +65,11 @@ export class RealtimeHub {
     this.io?.in(ROOMS.user(userId)).socketsLeave(ROOMS.conversation(conversationId));
   }
 
-  private emitTo<E extends ServerEventName>(rooms: string | string[], event: E, payload: Payload<E>): void {
+  private emitTo<E extends ServerEventName>(
+    rooms: string | string[],
+    event: E,
+    payload: Payload<E>,
+  ): void {
     if (!this.io) return;
     // The generic event map makes the spread hard for TS to express; the cast is local and typed above.
     (this.io.in(rooms).emit as (event: E, payload: Payload<E>) => void)(event, payload);

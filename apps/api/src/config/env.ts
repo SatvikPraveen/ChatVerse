@@ -13,7 +13,13 @@ const envSchema = z.object({
   NODE_ID: z
     .string()
     .regex(/^[A-Za-z0-9_-]{1,32}$/)
-    .default(() => os.hostname().replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 32) || 'node'),
+    .default(
+      () =>
+        os
+          .hostname()
+          .replace(/[^A-Za-z0-9_-]/g, '-')
+          .slice(0, 32) || 'node',
+    ),
 
   MONGODB_URI: z.string().min(1),
   REDIS_URL: z.string().min(1).optional(),
@@ -26,11 +32,18 @@ const envSchema = z.object({
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:5173')
-    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: bool.default('false'),
   RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  /** Credential endpoints (register/login/refresh) per IP per minute. Raise only for load tests. */
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   METRICS_ENABLED: bool.default('true'),
 
   S3_ENDPOINT: z.string().url().optional(),
@@ -56,7 +69,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   for (const [k, v] of Object.entries(source)) if (v !== undefined && v !== '') cleaned[k] = v;
   const result = envSchema.safeParse(cleaned);
   if (!result.success) {
-    const problems = result.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+    const problems = result.error.issues
+      .map((i) => `  ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
     throw new Error(`Invalid environment configuration:\n${problems}`);
   }
   return result.data;

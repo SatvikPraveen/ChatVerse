@@ -2,7 +2,12 @@ import webPush from 'web-push';
 import type { Message, PushSubscriptionInput } from '@chatverse/protocol';
 import { isPushConfigured } from '../config/env.js';
 import type { Deps } from '../deps.js';
-import { PushSubscriptionModel, User, participantIds, type ConversationDoc } from '../domain/models/index.js';
+import {
+  PushSubscriptionModel,
+  User,
+  participantIds,
+  type ConversationDoc,
+} from '../domain/models/index.js';
 import { toObjectId } from '../lib/ids.js';
 import type { PresenceService } from './presence.service.js';
 
@@ -10,7 +15,8 @@ import type { PresenceService } from './presence.service.js';
 export function createPushService(deps: Pick<Deps, 'env' | 'logger'>, presence: PresenceService) {
   const { env, logger } = deps;
   const enabled = isPushConfigured(env);
-  if (enabled) webPush.setVapidDetails(env.VAPID_SUBJECT!, env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!);
+  if (enabled)
+    webPush.setVapidDetails(env.VAPID_SUBJECT!, env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!);
 
   return {
     enabled,
@@ -38,7 +44,10 @@ export function createPushService(deps: Pick<Deps, 'env' | 'logger'>, presence: 
         if ((await presence.get(id)).deviceCount === 0) offline.push(id);
       }
       if (offline.length === 0) return;
-      const optedIn = await User.find({ _id: { $in: offline.map(toObjectId) }, 'settings.notifications.push': true }).select('_id');
+      const optedIn = await User.find({
+        _id: { $in: offline.map(toObjectId) },
+        'settings.notifications.push': true,
+      }).select('_id');
       const subs = await PushSubscriptionModel.find({ userId: { $in: optedIn.map((u) => u._id) } });
       const payload = JSON.stringify({
         title: conversation.name ?? 'New message',
@@ -48,10 +57,13 @@ export function createPushService(deps: Pick<Deps, 'env' | 'logger'>, presence: 
       await Promise.allSettled(
         subs.map(async (s) => {
           try {
-            await webPush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload, { TTL: 3600 });
+            await webPush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload, {
+              TTL: 3600,
+            });
           } catch (err) {
             const status = (err as { statusCode?: number }).statusCode;
-            if (status === 404 || status === 410) await PushSubscriptionModel.deleteOne({ _id: s._id });
+            if (status === 404 || status === 410)
+              await PushSubscriptionModel.deleteOne({ _id: s._id });
             else logger.debug({ err }, 'web-push send failed');
           }
         }),

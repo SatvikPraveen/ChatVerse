@@ -13,10 +13,18 @@ import type { ConversationsService } from './conversations.service.js';
  * with `lastReadSeq` because reading implies delivery. Watermarks are clamped to headSeq so a
  * client cannot claim to have read the future.
  */
-export function createReceiptsService(deps: Pick<Deps, 'hub'>, conversations: ConversationsService) {
+export function createReceiptsService(
+  deps: Pick<Deps, 'hub'>,
+  conversations: ConversationsService,
+) {
   const { hub } = deps;
 
-  async function advance(conversationId: string, userId: string, seq: number, field: 'lastDeliveredSeq' | 'lastReadSeq'): Promise<ReceiptUpdate | null> {
+  async function advance(
+    conversationId: string,
+    userId: string,
+    seq: number,
+    field: 'lastDeliveredSeq' | 'lastReadSeq',
+  ): Promise<ReceiptUpdate | null> {
     const c = await conversations.loadForMember(conversationId, userId);
     const clamped = Math.min(seq, c.headSeq);
     const $max: Record<string, number> = { 'participants.$.lastDeliveredSeq': clamped };
@@ -29,15 +37,23 @@ export function createReceiptsService(deps: Pick<Deps, 'hub'>, conversations: Co
     if (!updated) return null;
     const p = findParticipant(updated, userId)!;
     const before = findParticipant(c, userId)!;
-    if (p.lastDeliveredSeq === before.lastDeliveredSeq && p.lastReadSeq === before.lastReadSeq) return null; // nothing moved
-    const update: ReceiptUpdate = { conversationId, userId, lastDeliveredSeq: p.lastDeliveredSeq, lastReadSeq: p.lastReadSeq };
+    if (p.lastDeliveredSeq === before.lastDeliveredSeq && p.lastReadSeq === before.lastReadSeq)
+      return null; // nothing moved
+    const update: ReceiptUpdate = {
+      conversationId,
+      userId,
+      lastDeliveredSeq: p.lastDeliveredSeq,
+      lastReadSeq: p.lastReadSeq,
+    };
     hub.toConversation(conversationId, 'receipt:updated', update);
     return update;
   }
 
   return {
-    markDelivered: (conversationId: string, userId: string, seq: number) => advance(conversationId, userId, seq, 'lastDeliveredSeq'),
-    markRead: (conversationId: string, userId: string, seq: number) => advance(conversationId, userId, seq, 'lastReadSeq'),
+    markDelivered: (conversationId: string, userId: string, seq: number) =>
+      advance(conversationId, userId, seq, 'lastDeliveredSeq'),
+    markRead: (conversationId: string, userId: string, seq: number) =>
+      advance(conversationId, userId, seq, 'lastReadSeq'),
   };
 }
 

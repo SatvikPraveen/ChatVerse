@@ -22,14 +22,20 @@ export interface RedisHandle {
   close(): Promise<void>;
 }
 
-export async function createRedis(env: Pick<Env, 'REDIS_URL' | 'NODE_ENV'>, logger: Logger): Promise<RedisHandle> {
+export async function createRedis(
+  env: Pick<Env, 'REDIS_URL' | 'NODE_ENV'>,
+  logger: Logger,
+): Promise<RedisHandle> {
   if (!env.REDIS_URL || env.NODE_ENV === 'test') {
     if (env.NODE_ENV === 'production') {
-      throw new Error('REDIS_URL is required in production (the in-process emulator is dev/test only)');
+      throw new Error(
+        'REDIS_URL is required in production (the in-process emulator is dev/test only)',
+      );
     }
     const { default: RedisMock } = await import('ioredis-mock');
     const client = new RedisMock() as unknown as Redis;
-    if (env.NODE_ENV !== 'test') logger.warn('REDIS_URL not set: using in-process Redis emulation (single node only)');
+    if (env.NODE_ENV !== 'test')
+      logger.warn('REDIS_URL not set: using in-process Redis emulation (single node only)');
     return {
       client,
       shared: false,
@@ -41,7 +47,11 @@ export async function createRedis(env: Pick<Env, 'REDIS_URL' | 'NODE_ENV'>, logg
     };
   }
 
-  const client = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 3, enableReadyCheck: true });
+  const client = new Redis(env.REDIS_URL, {
+    lazyConnect: true,
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: true,
+  });
   client.on('error', (err) => logger.error({ err }, 'redis error'));
   client.on('reconnecting', () => logger.warn('redis reconnecting'));
   await client.connect();

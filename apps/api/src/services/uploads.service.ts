@@ -1,6 +1,10 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { ErrorCode, type PresignUploadInput, type PresignUploadResponse } from '@chatverse/protocol';
+import {
+  ErrorCode,
+  type PresignUploadInput,
+  type PresignUploadResponse,
+} from '@chatverse/protocol';
 import { isS3Configured } from '../config/env.js';
 import type { Deps } from '../deps.js';
 import { AttachmentModel } from '../domain/models/index.js';
@@ -19,7 +23,10 @@ export function createUploadsService(deps: Pick<Deps, 'env'>) {
   const client = enabled
     ? new S3Client({
         region: env.S3_REGION,
-        credentials: { accessKeyId: env.S3_ACCESS_KEY_ID!, secretAccessKey: env.S3_SECRET_ACCESS_KEY! },
+        credentials: {
+          accessKeyId: env.S3_ACCESS_KEY_ID!,
+          secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+        },
         ...(env.S3_ENDPOINT ? { endpoint: env.S3_ENDPOINT, forcePathStyle: true } : {}),
       })
     : null;
@@ -33,15 +40,33 @@ export function createUploadsService(deps: Pick<Deps, 'env'>) {
     enabled,
 
     async presign(ownerId: string, input: PresignUploadInput): Promise<PresignUploadResponse> {
-      if (!client || !env.S3_BUCKET) throw new AppError(ErrorCode.SERVICE_UNAVAILABLE, 'File uploads are not configured on this server');
+      if (!client || !env.S3_BUCKET)
+        throw new AppError(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'File uploads are not configured on this server',
+        );
       const id = newObjectId();
       const safeName = input.fileName.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
       const key = `uploads/${ownerId}/${id.toString()}/${safeName}`;
       const url = publicUrl(key);
-      await AttachmentModel.create({ _id: id, ownerId: toObjectId(ownerId), name: input.fileName, size: input.size, mimeType: input.mimeType, key, url, status: 'pending' });
+      await AttachmentModel.create({
+        _id: id,
+        ownerId: toObjectId(ownerId),
+        name: input.fileName,
+        size: input.size,
+        mimeType: input.mimeType,
+        key,
+        url,
+        status: 'pending',
+      });
       const uploadUrl = await getSignedUrl(
         client,
-        new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: key, ContentType: input.mimeType, ContentLength: input.size }),
+        new PutObjectCommand({
+          Bucket: env.S3_BUCKET,
+          Key: key,
+          ContentType: input.mimeType,
+          ContentLength: input.size,
+        }),
         { expiresIn: PRESIGN_TTL_SEC },
       );
       return {
@@ -53,7 +78,10 @@ export function createUploadsService(deps: Pick<Deps, 'env'>) {
       };
     },
 
-    async complete(ownerId: string, attachmentId: string): Promise<{ attachmentId: string; url: string }> {
+    async complete(
+      ownerId: string,
+      attachmentId: string,
+    ): Promise<{ attachmentId: string; url: string }> {
       const doc = await AttachmentModel.findOneAndUpdate(
         { _id: toObjectId(attachmentId), ownerId: toObjectId(ownerId) },
         { $set: { status: 'ready' } },

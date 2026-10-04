@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 import type { Env } from '../config/env.js';
 import type { Logger } from './logger.js';
 
-export async function connectMongo(env: Pick<Env, 'MONGODB_URI'>, logger: Logger): Promise<typeof mongoose> {
+export async function connectMongo(
+  env: Pick<Env, 'MONGODB_URI'>,
+  logger: Logger,
+): Promise<typeof mongoose> {
   if (mongoose.connection.readyState === 1) return mongoose; // already connected (test suite shares one connection)
   mongoose.set('strictQuery', true);
   mongoose.connection.on('error', (err) => logger.error({ err }, 'mongodb error'));

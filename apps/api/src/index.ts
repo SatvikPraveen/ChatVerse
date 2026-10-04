@@ -23,7 +23,9 @@ async function main(): Promise<void> {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('unhandledRejection', (reason) => logger.error({ err: reason }, 'unhandled promise rejection'));
+  process.on('unhandledRejection', (reason) =>
+    logger.error({ err: reason }, 'unhandled promise rejection'),
+  );
   process.on('uncaughtException', (err) => {
     logger.fatal({ err }, 'uncaught exception');
     shutdown('uncaughtException');

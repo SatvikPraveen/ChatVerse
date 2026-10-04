@@ -8,20 +8,20 @@ The key words MUST, MUST NOT, SHOULD and MAY are to be interpreted as in RFC 211
 
 ## 1. Design goals
 
-| Goal | Mechanism |
-| --- | --- |
-| Exactly-once *visible* delivery over an at-least-once transport | Client idempotency keys (`clientMsgId`) + server-side unique index |
-| Total order per conversation, gap detection, resumable sync | Dense per-conversation sequence numbers (`seq`) |
-| Causally consistent order across conversations and nodes | Hybrid Logical Clock (`hlc`) |
-| O(participants) receipt state | Per-participant delivered/read watermarks |
-| Horizontal scalability | Room-based fan-out through a Redis-backed adapter |
-| Confidentiality against the server | Opaque `EncryptedPayload`, keys never leave devices |
+| Goal                                                            | Mechanism                                                          |
+| --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Exactly-once _visible_ delivery over an at-least-once transport | Client idempotency keys (`clientMsgId`) + server-side unique index |
+| Total order per conversation, gap detection, resumable sync     | Dense per-conversation sequence numbers (`seq`)                    |
+| Causally consistent order across conversations and nodes        | Hybrid Logical Clock (`hlc`)                                       |
+| O(participants) receipt state                                   | Per-participant delivered/read watermarks                          |
+| Horizontal scalability                                          | Room-based fan-out through a Redis-backed adapter                  |
+| Confidentiality against the server                              | Opaque `EncryptedPayload`, keys never leave devices                |
 
 ## 2. Transport
 
-* REST over HTTPS under `/api/v1` for request/response operations.
-* A single multiplexed Socket.IO connection for real-time events.
-* All timestamps are ISO-8601 strings in UTC. All identifiers are opaque strings.
+- REST over HTTPS under `/api/v1` for request/response operations.
+- A single multiplexed Socket.IO connection for real-time events.
+- All timestamps are ISO-8601 strings in UTC. All identifiers are opaque strings.
 
 ### 2.1 Envelopes
 
@@ -37,11 +37,11 @@ The mapping from `ErrorCode` to HTTP status is fixed in `errors.ts`.
 
 ### 2.2 Authentication
 
-* `POST /auth/login` returns a short-lived **access token** (JWT, default 15 min) and an opaque
+- `POST /auth/login` returns a short-lived **access token** (JWT, default 15 min) and an opaque
   **refresh token** (default 30 days).
-* REST requests carry `Authorization: Bearer <accessToken>`.
-* The socket handshake carries `auth: { token: <accessToken>, deviceId }`.
-* Refresh tokens are **rotated on every use** and belong to a *family*. Presenting a refresh
+- REST requests carry `Authorization: Bearer <accessToken>`.
+- The socket handshake carries `auth: { token: <accessToken>, deviceId }`.
+- Refresh tokens are **rotated on every use** and belong to a _family_. Presenting a refresh
   token that was already rotated is treated as theft: the server returns `TOKEN_REUSED` and
   revokes the whole family (every session derived from that login).
 
@@ -50,11 +50,11 @@ The mapping from `ErrorCode` to HTTP status is fixed in `errors.ts`.
 Each conversation carries a monotonically increasing `headSeq`. When the server accepts a
 message it assigns `seq = headSeq + 1` atomically. Consequently:
 
-* `seq` values in one conversation are **dense**: 1, 2, 3, ... with no holes once all
+- `seq` values in one conversation are **dense**: 1, 2, 3, ... with no holes once all
   messages are received.
-* A client that holds messages up to `k` and receives `seq = k + n` with `n > 1` has a **gap**
+- A client that holds messages up to `k` and receives `seq = k + n` with `n > 1` has a **gap**
   and MUST recover it with `sync:pull { afterSeq: k }` (or `GET .../messages?afterSeq=k`).
-* `Conversation.headSeq` tells a client how far behind it is without fetching anything.
+- `Conversation.headSeq` tells a client how far behind it is without fetching anything.
 
 Deleted messages keep their `seq` (they are tombstoned with `deletedAt`), so density is preserved.
 
@@ -62,11 +62,26 @@ Reference implementation: `INCR conv:{id}:seq` in Redis, seeded from the databas
 cache, with a fallback to an atomic `$inc` on the conversation document when Redis is down.
 Either path yields the same dense sequence.
 
+### 3.1 Emission order
+
+Allocating `seq` and broadcasting are two steps, so without care a server can broadcast
+`seq = 6` before `seq = 5`. The reference server therefore runs "allocate → persist → emit" in a
+per-conversation critical section: an in-process queue on each node and, when nodes share a
+Redis, a distributed lock across the cluster. The guarantee a client may rely on is:
+
+- **MUST:** every message a client receives for a conversation has a unique `seq`, and the
+  set of `seq` values it eventually holds is dense.
+- **SHOULD:** `message:new` events arrive in increasing `seq` order. Clients MUST still order by
+  `seq` and MUST treat an out-of-order arrival as a transient gap (wait briefly or `sync:pull`),
+  because a lost lock or a slow pub/sub hop can reorder emissions without violating correctness.
+
+`docs/EVALUATION.md` reports measured ordering violations with and without the cluster lock.
+
 ## 4. Idempotent sends
 
 Every send carries a client-generated UUID `clientMsgId`. The server enforces a unique index on
 `(conversationId, senderId, clientMsgId)`. If a client retries a send (after a timeout, a
-reconnect, or from an offline outbox) the server returns the *original* message with its
+reconnect, or from an offline outbox) the server returns the _original_ message with its
 original `seq` and `ok: true`. Clients therefore get exactly-once visible delivery without
 distributed transactions.
 
@@ -77,10 +92,10 @@ Clients MUST generate `clientMsgId` once per logical message and reuse it on eve
 Every message is stamped with `hlc`, an encoded (wallMs, counter, nodeId) triple as defined in
 `hlc.ts`. Properties:
 
-* Lexicographic order of the encoded string equals logical order.
-* If message A causally precedes message B (same node, or B was created after A was received)
+- Lexicographic order of the encoded string equals logical order.
+- If message A causally precedes message B (same node, or B was created after A was received)
   then `hlc(A) < hlc(B)` regardless of clock skew between nodes.
-* `wallMs` is within bounded drift of physical time, so `hlc` doubles as a trustworthy
+- `wallMs` is within bounded drift of physical time, so `hlc` doubles as a trustworthy
   "created at" for cross-conversation views (search results, notification ordering).
 
 Servers MUST call `receive()` with the HLC of any inbound timestamp they merge, and MUST reject
@@ -91,12 +106,12 @@ timestamps more than `HLC_MAX_DRIFT_MS` ahead of their physical clock.
 Receipts are **watermarks**, not per-message sets. Each participant has
 `lastDeliveredSeq` and `lastReadSeq` per conversation.
 
-* A client emits `receipt:delivered { conversationId, seq }` after persisting a message
+- A client emits `receipt:delivered { conversationId, seq }` after persisting a message
   locally and `receipt:read` when the user has seen it. Clients SHOULD debounce and send only
   the highest `seq`.
-* The server applies the update only if it is **greater** than the stored value (monotonic).
-* The server broadcasts `receipt:updated` to the conversation room.
-* A message with `seq ≤ lastReadSeq` of participant P has been read by P.
+- The server applies the update only if it is **greater** than the stored value (monotonic).
+- The server broadcasts `receipt:updated` to the conversation room.
+- A message with `seq ≤ lastReadSeq` of participant P has been read by P.
 
 Unread count for the current user is simply `headSeq - myParticipant.lastReadSeq`.
 
@@ -104,12 +119,12 @@ Unread count for the current user is simply `headSeq - myParticipant.lastReadSeq
 
 Presence is tracked per **device** and aggregated per user:
 
-* On connect the server records the socket under the user with a heartbeat TTL; on
+- On connect the server records the socket under the user with a heartbeat TTL; on
   disconnect (or TTL expiry after a crash) it is removed.
-* `Presence.deviceCount` is the number of live sockets; `status = 'offline'` iff it is zero.
-* Presence changes are broadcast only to users that share at least one conversation with the
+- `Presence.deviceCount` is the number of live sockets; `status = 'offline'` iff it is zero.
+- Presence changes are broadcast only to users that share at least one conversation with the
   subject, never globally.
-* `presence:set` lets a client choose `online | away | busy`; `offline` is derived, never set.
+- `presence:set` lets a client choose `online | away | busy`; `offline` is derived, never set.
 
 ## 8. Typing
 
@@ -140,8 +155,8 @@ cryptographic protocol is specified in [`SECURITY.md`](./SECURITY.md) and implem
 
 ## 11. Rate limiting
 
-* REST: fixed window per user (or IP before authentication) with `RateLimit-*` headers.
-* Socket: token bucket per socket per event (`SOCKET_RATE_LIMITS`). Exceeding it yields an
+- REST: fixed window per user (or IP before authentication) with `RateLimit-*` headers.
+- Socket: token bucket per socket per event (`SOCKET_RATE_LIMITS`). Exceeding it yields an
   ack with `RATE_LIMITED` (for acknowledged events) or a `rate:limited` event, both carrying
   `retryAfterMs`.
 
@@ -152,27 +167,27 @@ events) do not bump the version. Removing or changing the meaning of a field doe
 
 ## 13. Event reference
 
-| Direction | Event | Payload | Ack |
-| --- | --- | --- | --- |
-| C→S | `conversation:join` | `{ conversationId }` | `{ headSeq }` |
-| C→S | `conversation:leave` | `{ conversationId }` | – |
-| C→S | `message:send` | `MessageSendInput` | `{ message }` |
-| C→S | `message:edit` | `MessageEditInput` | `{ message }` |
-| C→S | `message:delete` | `{ messageId }` | `{ messageId }` |
-| C→S | `reaction:toggle` | `{ messageId, emoji }` | `{ message }` |
-| C→S | `receipt:delivered` / `receipt:read` | `{ conversationId, seq }` | – |
-| C→S | `typing` | `{ conversationId, isTyping }` | – |
-| C→S | `presence:set` | `{ status }` | – |
-| C→S | `sync:pull` | `{ conversationId, afterSeq, limit? }` | `SyncPullResult` |
-| C→S | `ping` | – | `{ serverTime, hlc }` |
-| S→C | `session:ready` | `{ user, serverTime, hlc, nodeId, protocolVersion }` | |
-| S→C | `message:new` / `message:updated` | `{ message }` | |
-| S→C | `message:deleted` | `{ conversationId, messageId, seq }` | |
-| S→C | `receipt:updated` | `ReceiptUpdate` | |
-| S→C | `typing` | `{ conversationId, userId, isTyping }` | |
-| S→C | `presence:changed` | `Presence` | |
-| S→C | `conversation:added` / `updated` | `{ conversation }` | |
-| S→C | `conversation:removed` | `{ conversationId }` | |
-| S→C | `user:updated` | `{ user }` | |
-| S→C | `rate:limited` | `{ event, retryAfterMs }` | |
-| S→C | `protocol:error` | `ApiError` | |
+| Direction | Event                                | Payload                                              | Ack                   |
+| --------- | ------------------------------------ | ---------------------------------------------------- | --------------------- |
+| C→S       | `conversation:join`                  | `{ conversationId }`                                 | `{ headSeq }`         |
+| C→S       | `conversation:leave`                 | `{ conversationId }`                                 | –                     |
+| C→S       | `message:send`                       | `MessageSendInput`                                   | `{ message }`         |
+| C→S       | `message:edit`                       | `MessageEditInput`                                   | `{ message }`         |
+| C→S       | `message:delete`                     | `{ messageId }`                                      | `{ messageId }`       |
+| C→S       | `reaction:toggle`                    | `{ messageId, emoji }`                               | `{ message }`         |
+| C→S       | `receipt:delivered` / `receipt:read` | `{ conversationId, seq }`                            | –                     |
+| C→S       | `typing`                             | `{ conversationId, isTyping }`                       | –                     |
+| C→S       | `presence:set`                       | `{ status }`                                         | –                     |
+| C→S       | `sync:pull`                          | `{ conversationId, afterSeq, limit? }`               | `SyncPullResult`      |
+| C→S       | `ping`                               | –                                                    | `{ serverTime, hlc }` |
+| S→C       | `session:ready`                      | `{ user, serverTime, hlc, nodeId, protocolVersion }` |                       |
+| S→C       | `message:new` / `message:updated`    | `{ message }`                                        |                       |
+| S→C       | `message:deleted`                    | `{ conversationId, messageId, seq }`                 |                       |
+| S→C       | `receipt:updated`                    | `ReceiptUpdate`                                      |                       |
+| S→C       | `typing`                             | `{ conversationId, userId, isTyping }`               |                       |
+| S→C       | `presence:changed`                   | `Presence`                                           |                       |
+| S→C       | `conversation:added` / `updated`     | `{ conversation }`                                   |                       |
+| S→C       | `conversation:removed`               | `{ conversationId }`                                 |                       |
+| S→C       | `user:updated`                       | `{ user }`                                           |                       |
+| S→C       | `rate:limited`                       | `{ event, retryAfterMs }`                            |                       |
+| S→C       | `protocol:error`                     | `ApiError`                                           |                       |

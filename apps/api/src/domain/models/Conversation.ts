@@ -1,5 +1,11 @@
 import { Schema, model, type HydratedDocument, type Types } from 'mongoose';
-import type { Conversation, ConversationKind, MessageKind, Participant, ParticipantRole } from '@chatverse/protocol';
+import type {
+  Conversation,
+  ConversationKind,
+  MessageKind,
+  Participant,
+  ParticipantRole,
+} from '@chatverse/protocol';
 
 export interface ParticipantDoc {
   userId: Types.ObjectId;

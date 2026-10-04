@@ -1,4 +1,11 @@
-import { ErrorCode, LIMITS, type OneTimePreKey, type PreKeyBundle, type PreKeyBundleUploadInput, type PreKeyCountResponse } from '@chatverse/protocol';
+import {
+  ErrorCode,
+  LIMITS,
+  type OneTimePreKey,
+  type PreKeyBundle,
+  type PreKeyBundleUploadInput,
+  type PreKeyCountResponse,
+} from '@chatverse/protocol';
 import { DeviceKeysModel, User } from '../domain/models/index.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { toObjectId } from '../lib/ids.js';
@@ -25,10 +32,17 @@ export function createKeysService() {
       );
     },
 
-    async addOneTimePreKeys(userId: string, deviceId: string, keys: OneTimePreKey[]): Promise<PreKeyCountResponse> {
+    async addOneTimePreKeys(
+      userId: string,
+      deviceId: string,
+      keys: OneTimePreKey[],
+    ): Promise<PreKeyCountResponse> {
       const doc = await DeviceKeysModel.findOneAndUpdate(
         { userId: toObjectId(userId), deviceId },
-        { $push: { oneTimePreKeys: { $each: keys, $slice: -LIMITS.ONE_TIME_PREKEYS_MAX } }, $set: { lastActiveAt: new Date() } },
+        {
+          $push: { oneTimePreKeys: { $each: keys, $slice: -LIMITS.ONE_TIME_PREKEYS_MAX } },
+          $set: { lastActiveAt: new Date() },
+        },
         { new: true },
       );
       if (!doc) throw notFound('Device');
@@ -36,13 +50,18 @@ export function createKeysService() {
     },
 
     async count(userId: string, deviceId: string): Promise<PreKeyCountResponse> {
-      const doc = await DeviceKeysModel.findOne({ userId: toObjectId(userId), deviceId }).select('oneTimePreKeys');
+      const doc = await DeviceKeysModel.findOne({ userId: toObjectId(userId), deviceId }).select(
+        'oneTimePreKeys',
+      );
       if (!doc) throw notFound('Device');
       return { deviceId, oneTimePreKeys: doc.oneTimePreKeys.length };
     },
 
     async touch(userId: string, deviceId: string): Promise<void> {
-      await DeviceKeysModel.updateOne({ userId: toObjectId(userId), deviceId }, { $set: { lastActiveAt: new Date() } });
+      await DeviceKeysModel.updateOne(
+        { userId: toObjectId(userId), deviceId },
+        { $set: { lastActiveAt: new Date() } },
+      );
     },
 
     /**
@@ -55,15 +74,24 @@ export function createKeysService() {
       const filter: Record<string, unknown> = { userId: toObjectId(targetUserId) };
       if (deviceId) filter.deviceId = deviceId;
       // findOneAndUpdate returns the pre-update document, i.e. including the key we just popped.
-      const before = await DeviceKeysModel.findOneAndUpdate(filter, { $pop: { oneTimePreKeys: -1 } }, { sort: { lastActiveAt: -1 }, new: false });
-      if (!before) throw new AppError(ErrorCode.NOT_FOUND, 'No encryption keys published for this user');
+      const before = await DeviceKeysModel.findOneAndUpdate(
+        filter,
+        { $pop: { oneTimePreKeys: -1 } },
+        { sort: { lastActiveAt: -1 }, new: false },
+      );
+      if (!before)
+        throw new AppError(ErrorCode.NOT_FOUND, 'No encryption keys published for this user');
       const popped = before.oneTimePreKeys[0] ?? null;
       return {
         userId: targetUserId,
         deviceId: before.deviceId,
         identityKey: before.identityKey,
         signingKey: before.signingKey,
-        signedPreKey: { id: before.signedPreKey.id, publicKey: before.signedPreKey.publicKey, signature: before.signedPreKey.signature },
+        signedPreKey: {
+          id: before.signedPreKey.id,
+          publicKey: before.signedPreKey.publicKey,
+          signature: before.signedPreKey.signature,
+        },
         oneTimePreKey: popped ? { id: popped.id, publicKey: popped.publicKey } : null,
       };
     },
