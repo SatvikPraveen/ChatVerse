@@ -229,6 +229,39 @@ describe('E2EE engine', () => {
     });
   });
 
+  it('group: the same distribution decrypted twice, concurrently and after reload, never fails', async () => {
+    // Regression: the live event and a history load can deliver the same control message at the
+    // same time. Its message key is single use, so the second decrypt used to fail and render
+    // "Could not decrypt this message" (seen on slower CI runners).
+    const ks = fakeKeyServer();
+    const alice = await device('alice', 'alice-dev-00001', ks);
+    const bob = await device('bob', 'bob-dev-0000001', ks);
+    await device('carol', 'carol-dev-00001', ks);
+    const { payload, preamble } = await alice.e2ee.encrypt(group, 'hello team');
+    const controls = preamble.map((p) => wire(group.id, 'alice', p));
+
+    const twice = await Promise.all(
+      controls.flatMap((c) => [bob.e2ee.decrypt(group, c), bob.e2ee.decrypt(group, c)]),
+    );
+    expect(twice.filter((o) => o.kind === 'failed')).toEqual([]);
+    expect(twice.filter((o) => o.kind === 'control')).toHaveLength(2);
+
+    await bob.e2ee.flush();
+    const reopened = await E2EE.open({
+      userId: 'bob',
+      deviceId: 'bob-dev-0000001',
+      storage: bob.storage,
+      keyServer: ks,
+    });
+    for (const c of controls) {
+      expect((await reopened.decrypt(group, c)).kind).not.toBe('failed');
+    }
+    expect(await reopened.decrypt(group, wire(group.id, 'alice', payload))).toEqual({
+      kind: 'text',
+      text: 'hello team',
+    });
+  });
+
   it('group: membership change rotates the sender key', async () => {
     const ks = fakeKeyServer();
     const alice = await device('alice', 'alice-dev-00001', ks);

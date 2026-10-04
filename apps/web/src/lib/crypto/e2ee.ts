@@ -109,6 +109,18 @@ export class E2EE {
   private sessions: Record<string, SessionRecord> = {};
   private groups: GroupState = { own: {}, peers: {} };
   private plaintext: Record<string, string> = {};
+  /**
+   * Message ids of control messages (sender-key distributions) already applied, mapped to their
+   * conversation. Their message keys are single use, so a second decrypt of the same message
+   * (live event and history load racing, or a reload) must be answered from here, not retried.
+   */
+  private controls: Record<string, string> = {};
+  /**
+   * Every operation that reads or advances ratchet state runs through this chain. Decrypt and
+   * encrypt await storage and the key server in the middle of a state transition, so without
+   * serialisation two overlapping calls could consume the same message key twice.
+   */
+  private lock: Promise<unknown> = Promise.resolve();
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor(private readonly opts: E2EEOptions) {}
@@ -135,6 +147,7 @@ export class E2EE {
     e.sessions = (await storage.get<Record<string, SessionRecord>>(e.key('sessions'))) ?? {};
     e.groups = (await storage.get<GroupState>(e.key('groups'))) ?? { own: {}, peers: {} };
     e.plaintext = (await storage.get<Record<string, string>>(e.key('plaintext'))) ?? {};
+    e.controls = (await storage.get<Record<string, string>>(e.key('controls'))) ?? {};
     await e.ensureServerHasKeys();
     return e;
   }
@@ -199,7 +212,20 @@ export class E2EE {
    * Encrypt `plaintext` for a conversation. For groups, `preamble` holds sender-key distribution
    * control payloads that must be sent (in order) before `payload`.
    */
-  async encrypt(
+  encrypt(
+    conversation: Conversation,
+    plaintext: string,
+  ): Promise<{ payload: EncryptedPayload; preamble: EncryptedPayload[] }> {
+    return this.exclusive(() => this.encryptUnlocked(conversation, plaintext));
+  }
+
+  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.lock.then(fn, fn);
+    this.lock = run.catch(() => undefined);
+    return run;
+  }
+
+  private async encryptUnlocked(
     conversation: Conversation,
     plaintext: string,
   ): Promise<{ payload: EncryptedPayload; preamble: EncryptedPayload[] }> {
@@ -277,9 +303,18 @@ export class E2EE {
   // Decrypt
   // ---------------------------------------------------------------------------------------------
 
-  async decrypt(conversation: Conversation, message: Message): Promise<DecryptOutcome> {
+  decrypt(conversation: Conversation, message: Message): Promise<DecryptOutcome> {
+    return this.exclusive(() => this.decryptUnlocked(conversation, message));
+  }
+
+  private async decryptUnlocked(
+    conversation: Conversation,
+    message: Message,
+  ): Promise<DecryptOutcome> {
     const cached = this.plaintext[message.id];
     if (cached !== undefined) return { kind: 'text', text: cached };
+    const control = this.controls[message.id];
+    if (control !== undefined) return { kind: 'control', conversationId: control };
     if (!message.encrypted) return { kind: 'failed', reason: 'no payload' };
     if (message.senderId === this.opts.userId) {
       // In a group, pairwise payloads are only ever sender-key distribution control messages;
@@ -298,6 +333,10 @@ export class E2EE {
           : { kind: 'failed' as const, reason: `unknown suite ${message.encrypted.suite}` };
 
     if (outcome.kind === 'text') this.rememberPlaintext(message.id, outcome.text);
+    if (outcome.kind === 'control') {
+      this.controls[message.id] = outcome.conversationId;
+      await this.opts.storage.set(this.key('controls'), this.controls);
+    }
     return outcome;
   }
 
@@ -445,10 +484,12 @@ export class E2EE {
       storage.del(this.key('sessions')),
       storage.del(this.key('groups')),
       storage.del(this.key('plaintext')),
+      storage.del(this.key('controls')),
     ]);
     this.sessions = {};
     this.groups = { own: {}, peers: {} };
     this.plaintext = {};
+    this.controls = {};
   }
 }
 
