@@ -75,11 +75,19 @@ jobs:
           mkdir -p release-assets
           if [ -f bench/results/REPORT.md ]; then cp bench/results/REPORT.md release-assets/BENCHMARKS.md; fi
           cp -r bench/results/baseline-*.json release-assets/ 2>/dev/null || true
+      - name: Compose release notes
+        # Images are tagged with the bare semver (2.0.0), not the git tag (v2.0.0).
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          { if [ -f "$notes" ]; then cat "$notes"; echo; fi
+            echo "## Container images"
+            echo
+            echo "- \`${IMAGE_PREFIX}-api:${version}\`"
+            echo "- \`${IMAGE_PREFIX}-web:${version}\`"
+          } > release-body.md
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: release-assets/*
-          body: |
-            Images:
-            - `${{ env.IMAGE_PREFIX }}-api:${{ github.ref_name }}`
-            - `${{ env.IMAGE_PREFIX }}-web:${{ github.ref_name }}`
+          body_path: release-body.md
