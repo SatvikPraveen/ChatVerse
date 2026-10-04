@@ -44,7 +44,9 @@ sw.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     // App shell: network first, fall back to the cached index for offline launches.
-    event.respondWith(fetch(request).catch(() => caches.match('/index.html').then((r) => r ?? Response.error())));
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/index.html').then((r) => r ?? Response.error())),
+    );
     return;
   }
   if (url.origin === sw.location.origin) {

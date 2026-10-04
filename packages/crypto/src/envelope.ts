@@ -27,7 +27,10 @@ export interface PairwiseEnvelopeHeader {
   x3dh?: { ik: string; ek: string; spk: number; opk: number | null };
 }
 
-export function encodePairwise(message: RatchetMessage, meta: PairwiseEnvelopeHeader): EncryptedPayload {
+export function encodePairwise(
+  message: RatchetMessage,
+  meta: PairwiseEnvelopeHeader,
+): EncryptedPayload {
   const header = { ...meta, dr: toBase64Url(encodeHeader(message.header)) };
   return {
     v: 1,
@@ -37,15 +40,30 @@ export function encodePairwise(message: RatchetMessage, meta: PairwiseEnvelopeHe
   };
 }
 
-export function decodePairwise(payload: EncryptedPayload): { message: RatchetMessage; meta: PairwiseEnvelopeHeader } {
+export function decodePairwise(payload: EncryptedPayload): {
+  message: RatchetMessage;
+  meta: PairwiseEnvelopeHeader;
+} {
   if (payload.suite !== SUITES.PAIRWISE) throw new Error(`unexpected suite ${payload.suite}`);
-  const parsed = JSON.parse(utf8.decode(fromBase64Url(payload.header))) as PairwiseEnvelopeHeader & { dr: string };
+  const parsed = JSON.parse(
+    utf8.decode(fromBase64Url(payload.header)),
+  ) as PairwiseEnvelopeHeader & { dr: string };
   const { dr, ...meta } = parsed;
-  return { message: { header: decodeHeader(fromBase64Url(dr)), ciphertext: fromBase64Url(payload.ciphertext) }, meta };
+  return {
+    message: {
+      header: decodeHeader(fromBase64Url(dr)),
+      ciphertext: fromBase64Url(payload.ciphertext),
+    },
+    meta,
+  };
 }
 
 export function encodeGroup(message: SenderKeyMessage): EncryptedPayload {
-  const header = { keyId: message.keyId, iteration: message.iteration, sig: toBase64Url(message.signature) };
+  const header = {
+    keyId: message.keyId,
+    iteration: message.iteration,
+    sig: toBase64Url(message.signature),
+  };
   return {
     v: 1,
     suite: SUITES.GROUP,
@@ -56,7 +74,11 @@ export function encodeGroup(message: SenderKeyMessage): EncryptedPayload {
 
 export function decodeGroup(payload: EncryptedPayload): SenderKeyMessage {
   if (payload.suite !== SUITES.GROUP) throw new Error(`unexpected suite ${payload.suite}`);
-  const header = JSON.parse(utf8.decode(fromBase64Url(payload.header))) as { keyId: number; iteration: number; sig: string };
+  const header = JSON.parse(utf8.decode(fromBase64Url(payload.header))) as {
+    keyId: number;
+    iteration: number;
+    sig: string;
+  };
   return {
     keyId: header.keyId,
     iteration: header.iteration,

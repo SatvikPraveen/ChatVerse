@@ -46,7 +46,12 @@ export function verify(signature: Uint8Array, message: Uint8Array, publicKey: Ui
   }
 }
 
-export function kdf(ikm: Uint8Array, salt: Uint8Array | undefined, info: string, length: number): Uint8Array {
+export function kdf(
+  ikm: Uint8Array,
+  salt: Uint8Array | undefined,
+  info: string,
+  length: number,
+): Uint8Array {
   return hkdf(sha256, ikm, salt, info, length);
 }
 
@@ -58,11 +63,21 @@ export function random(length: number): Uint8Array {
   return randomBytes(length);
 }
 
-export function aeadEncrypt(key: Uint8Array, nonce: Uint8Array, plaintext: Uint8Array, aad: Uint8Array): Uint8Array {
+export function aeadEncrypt(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  plaintext: Uint8Array,
+  aad: Uint8Array,
+): Uint8Array {
   return xchacha20poly1305(key, nonce, aad).encrypt(plaintext);
 }
 
-export function aeadDecrypt(key: Uint8Array, nonce: Uint8Array, ciphertext: Uint8Array, aad: Uint8Array): Uint8Array {
+export function aeadDecrypt(
+  key: Uint8Array,
+  nonce: Uint8Array,
+  ciphertext: Uint8Array,
+  aad: Uint8Array,
+): Uint8Array {
   return xchacha20poly1305(key, nonce, aad).decrypt(ciphertext);
 }
 
@@ -70,7 +85,10 @@ export function aeadDecrypt(key: Uint8Array, nonce: Uint8Array, ciphertext: Uint
  * Derive an AEAD key and nonce from a one-shot message key. The message key is never used
  * directly as the cipher key so that a compromised message key reveals nothing about the chain.
  */
-export function deriveMessageCipher(messageKey: Uint8Array, info: string): { key: Uint8Array; nonce: Uint8Array } {
+export function deriveMessageCipher(
+  messageKey: Uint8Array,
+  info: string,
+): { key: Uint8Array; nonce: Uint8Array } {
   const material = kdf(messageKey, new Uint8Array(KEY_LEN), info, KEY_LEN + NONCE_LEN);
   return { key: material.slice(0, KEY_LEN), nonce: material.slice(KEY_LEN) };
 }

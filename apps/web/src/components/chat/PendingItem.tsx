@@ -19,10 +19,18 @@ export function PendingItem({ pending }: { pending: PendingMessage }) {
         {pending.status === 'failed' && (
           <p className="mt-1 flex items-center justify-end gap-2 text-xs text-danger">
             <span>{pending.error ?? 'Not sent'}</span>
-            <button type="button" className="inline-flex items-center gap-1 underline" onClick={() => void retryPending(pending.clientMsgId)}>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 underline"
+              onClick={() => void retryPending(pending.clientMsgId)}
+            >
               <RotateCw size={12} /> Retry
             </button>
-            <button type="button" className="inline-flex items-center gap-1 underline" onClick={() => void discardPending(pending.clientMsgId)}>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 underline"
+              onClick={() => void discardPending(pending.clientMsgId)}
+            >
               <Trash2 size={12} /> Discard
             </button>
           </p>

@@ -40,7 +40,11 @@ export const useTypingStore = create<TypingState>((set) => ({
   reset: () => set({ byConversation: {} }),
 }));
 
-export function typingUserIds(byConversation: TypingState['byConversation'], conversationId: string, now = Date.now()): string[] {
+export function typingUserIds(
+  byConversation: TypingState['byConversation'],
+  conversationId: string,
+  now = Date.now(),
+): string[] {
   return Object.entries(byConversation[conversationId] ?? {})
     .filter(([, exp]) => exp > now)
     .map(([uid]) => uid);

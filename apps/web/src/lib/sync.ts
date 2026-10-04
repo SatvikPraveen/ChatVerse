@@ -96,6 +96,8 @@ export class Synchronizer {
 
   /** After a reconnect, catch up every tracked conversation. */
   async resumeAll(): Promise<void> {
-    await Promise.all(this.trackedConversations().map((id) => this.catchUp(id).catch(() => undefined)));
+    await Promise.all(
+      this.trackedConversations().map((id) => this.catchUp(id).catch(() => undefined)),
+    );
   }
 }

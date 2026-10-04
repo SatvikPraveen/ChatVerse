@@ -21,14 +21,14 @@ with tsup, the web client with Vite.
 
 ## Alternatives considered
 
-* **OpenAPI + AsyncAPI generated clients.** More tooling, two schema languages, and generated
+- **OpenAPI + AsyncAPI generated clients.** More tooling, two schema languages, and generated
   code that still has to be kept in sync with the zod validators.
-* **Protobuf.** Binary efficiency is not the bottleneck; JSON keeps debugging and the browser
+- **Protobuf.** Binary efficiency is not the bottleneck; JSON keeps debugging and the browser
   story simple.
 
 ## Consequences
 
-* A change to a wire type is a change to one file and fails compilation in every consumer.
-* Validation limits are identical on both ends (`LIMITS`).
-* The protocol has a human-readable normative spec (`docs/PROTOCOL.md`) that the package must
+- A change to a wire type is a change to one file and fails compilation in every consumer.
+- Validation limits are identical on both ends (`LIMITS`).
+- The protocol has a human-readable normative spec (`docs/PROTOCOL.md`) that the package must
   follow.

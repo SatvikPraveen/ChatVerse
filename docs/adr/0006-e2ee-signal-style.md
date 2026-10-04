@@ -12,9 +12,9 @@ one-time compromise of a device should not expose the whole history or the whole
 
 Implement the published Signal protocol family in TypeScript in `packages/crypto`:
 
-* **X3DH** for asynchronous authenticated key agreement (pre-key bundles on the server).
-* **Double Ratchet** for pairwise sessions (forward secrecy + post-compromise security).
-* **Sender Keys** for groups (one encryption per message instead of one per member).
+- **X3DH** for asynchronous authenticated key agreement (pre-key bundles on the server).
+- **Double Ratchet** for pairwise sessions (forward secrecy + post-compromise security).
+- **Sender Keys** for groups (one encryption per message instead of one per member).
 
 Primitives come from `@noble/curves`, `@noble/ciphers`, `@noble/hashes`: audited, pure
 TypeScript, identical in browsers and Node, no WASM initialisation.
@@ -24,19 +24,19 @@ key (same choice as Matrix/Olm).
 
 ## Alternatives considered
 
-* **libsignal (WASM/native bindings).** Not available for the browser as a supported package;
+- **libsignal (WASM/native bindings).** Not available for the browser as a supported package;
   opaque to readers of this codebase.
-* **MLS (RFC 9420).** Better group scalability (tree-based), but far larger to implement; Sender
+- **MLS (RFC 9420).** Better group scalability (tree-based), but far larger to implement; Sender
   Keys are adequate for groups of a few hundred.
-* **Server-side encryption at rest only.** Does not protect against the operator.
-* **libsodium-wrappers.** Works, but requires async WASM init and ships C; @noble is auditable
+- **Server-side encryption at rest only.** Does not protect against the operator.
+- **libsodium-wrappers.** Works, but requires async WASM init and ships C; @noble is auditable
   TypeScript.
 
 ## Consequences
 
-* The server never sees plaintext of encrypted conversations; it cannot generate previews or
+- The server never sees plaintext of encrypted conversations; it cannot generate previews or
   search them.
-* Clients must persist ratchet state after every operation; losing it loses the session.
-* Property-based and adversarial tests cover reordering, loss, replay, tampering, persistence,
+- Clients must persist ratchet state after every operation; losing it loses the session.
+- Property-based and adversarial tests cover reordering, loss, replay, tampering, persistence,
   and post-compromise security.
-* Metadata is still visible to the server (documented in SECURITY.md).
+- Metadata is still visible to the server (documented in SECURITY.md).

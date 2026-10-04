@@ -13,7 +13,12 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 export function pushSupported(): boolean {
-  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && env.vapidPublicKey !== '';
+  return (
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    env.vapidPublicKey !== ''
+  );
 }
 
 export async function currentPushSubscription(): Promise<PushSubscription | null> {
@@ -29,10 +34,17 @@ export async function enablePush(): Promise<boolean> {
   const reg = await navigator.serviceWorker.ready;
   const sub =
     (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(env.vapidPublicKey) }));
+    (await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(env.vapidPublicKey),
+    }));
   const json = sub.toJSON();
   if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) return false;
-  await api.push.subscribe({ endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth }, userAgent: navigator.userAgent });
+  await api.push.subscribe({
+    endpoint: json.endpoint,
+    keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+    userAgent: navigator.userAgent,
+  });
   return true;
 }
 

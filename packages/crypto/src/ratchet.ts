@@ -85,7 +85,11 @@ export class DoubleRatchet {
   }
 
   /** Alice: she knows Bob's ratchet key (his signed pre-key) and can send immediately. */
-  static initAsInitiator(sharedSecret: Uint8Array, theirRatchetKey: Uint8Array, associatedData: Uint8Array): DoubleRatchet {
+  static initAsInitiator(
+    sharedSecret: Uint8Array,
+    theirRatchetKey: Uint8Array,
+    associatedData: Uint8Array,
+  ): DoubleRatchet {
     const DHs = generateDhKeyPair();
     const [RK, CKs] = kdfRootKey(sharedSecret, dh(DHs.privateKey, theirRatchetKey));
     return new DoubleRatchet({
@@ -102,9 +106,16 @@ export class DoubleRatchet {
    * Bob: he waits for Alice's first message, which carries her ratchet key.
    * All inputs are copied so callers may wipe their buffers after construction.
    */
-  static initAsResponder(sharedSecret: Uint8Array, ourRatchetKeyPair: KeyPair, associatedData: Uint8Array): DoubleRatchet {
+  static initAsResponder(
+    sharedSecret: Uint8Array,
+    ourRatchetKeyPair: KeyPair,
+    associatedData: Uint8Array,
+  ): DoubleRatchet {
     return new DoubleRatchet({
-      DHs: { publicKey: ourRatchetKeyPair.publicKey.slice(), privateKey: ourRatchetKeyPair.privateKey.slice() },
+      DHs: {
+        publicKey: ourRatchetKeyPair.publicKey.slice(),
+        privateKey: ourRatchetKeyPair.privateKey.slice(),
+      },
       DHr: null,
       RK: sharedSecret.slice(),
       CKs: null,
@@ -120,7 +131,12 @@ export class DoubleRatchet {
     const header: RatchetHeader = { dh: this.DHs.publicKey, pn: this.PN, n: this.Ns };
     this.Ns += 1;
     const { key, nonce } = deriveMessageCipher(mk, MSG_INFO);
-    const ciphertext = aeadEncrypt(key, nonce, plaintext, concatBytes(this.AD, encodeHeader(header)));
+    const ciphertext = aeadEncrypt(
+      key,
+      nonce,
+      plaintext,
+      concatBytes(this.AD, encodeHeader(header)),
+    );
     mk.fill(0);
     return { header, ciphertext };
   }
@@ -155,7 +171,8 @@ export class DoubleRatchet {
   }
 
   private skipMessageKeys(until: number): void {
-    if (this.Nr + MAX_SKIP < until) throw new Error(`too many skipped messages (${until - this.Nr} > ${MAX_SKIP})`);
+    if (this.Nr + MAX_SKIP < until)
+      throw new Error(`too many skipped messages (${until - this.Nr} > ${MAX_SKIP})`);
     if (!this.CKr || !this.DHr) return;
     while (this.Nr < until) {
       const [ck, mk] = kdfChainKey(this.CKr);
@@ -224,7 +241,9 @@ export class DoubleRatchet {
     this.Ns = json.ns;
     this.Nr = json.nr;
     this.PN = json.pn;
-    this.skipped = new Map(json.skipped.map((s) => [`${s.dh}:${s.n}`, { mk: fromBase64Url(s.mk) }]));
+    this.skipped = new Map(
+      json.skipped.map((s) => [`${s.dh}:${s.n}`, { mk: fromBase64Url(s.mk) }]),
+    );
   }
 }
 

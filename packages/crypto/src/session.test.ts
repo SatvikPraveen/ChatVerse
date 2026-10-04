@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { PreKeyBundle } from '@chatverse/protocol';
 import { fromBase64Url } from './encoding.js';
-import { createDeviceKeyStore, replenishOneTimePreKeys, safetyNumber, verifyPreKeyBundle } from './keys.js';
+import {
+  createDeviceKeyStore,
+  replenishOneTimePreKeys,
+  safetyNumber,
+  verifyPreKeyBundle,
+} from './keys.js';
 import { PairwiseSession } from './session.js';
 
-function bundleFor(userId: string, store: ReturnType<typeof createDeviceKeyStore>, consumeOpk = true): PreKeyBundle {
+function bundleFor(
+  userId: string,
+  store: ReturnType<typeof createDeviceKeyStore>,
+  consumeOpk = true,
+): PreKeyBundle {
   const opk = consumeOpk ? store.upload.oneTimePreKeys[0]! : null;
   return {
     userId,
@@ -25,7 +34,11 @@ describe('PairwiseSession (X3DH + Double Ratchet)', () => {
     const first = session.encrypt('hi bob, this is alice');
     expect(first.suite).toBe('x3dh-dr-xchacha20-v1');
 
-    const { session: bobSession, plaintext } = PairwiseSession.respond(bob.store, 'alice-device-1', first);
+    const { session: bobSession, plaintext } = PairwiseSession.respond(
+      bob.store,
+      'alice-device-1',
+      first,
+    );
     expect(plaintext).toBe('hi bob, this is alice');
     // the one-time pre-key was consumed
     expect(bob.store.oneTimePreKeys.has(bob.upload.oneTimePreKeys[0]!.id)).toBe(false);
@@ -35,7 +48,9 @@ describe('PairwiseSession (X3DH + Double Ratchet)', () => {
 
     // After the first reply, X3DH parameters are no longer attached.
     const second = session.encrypt('ok');
-    expect(JSON.parse(new TextDecoder().decode(fromBase64Url(second.header)))).not.toHaveProperty('x3dh');
+    expect(JSON.parse(new TextDecoder().decode(fromBase64Url(second.header)))).not.toHaveProperty(
+      'x3dh',
+    );
     expect(bobSession.decrypt(second)).toBe('ok');
   });
 
@@ -43,7 +58,11 @@ describe('PairwiseSession (X3DH + Double Ratchet)', () => {
     const alice = createDeviceKeyStore('alice-device-1', 0);
     const bob = createDeviceKeyStore('bob-device-01', 0);
     const session = PairwiseSession.initiate(alice.store, bundleFor('bob', bob, false));
-    const { plaintext } = PairwiseSession.respond(bob.store, 'alice-device-1', session.encrypt('no opk'));
+    const { plaintext } = PairwiseSession.respond(
+      bob.store,
+      'alice-device-1',
+      session.encrypt('no opk'),
+    );
     expect(plaintext).toBe('no opk');
   });
 
@@ -78,9 +97,18 @@ describe('PairwiseSession (X3DH + Double Ratchet)', () => {
     const a = createDeviceKeyStore('alice-device-1', 0);
     const b = createDeviceKeyStore('bob-device-01', 0);
     const c = createDeviceKeyStore('carol-device-1', 0);
-    const ab = safetyNumber(a.store.identity.identity.publicKey, b.store.identity.identity.publicKey);
-    const ba = safetyNumber(b.store.identity.identity.publicKey, a.store.identity.identity.publicKey);
-    const ac = safetyNumber(a.store.identity.identity.publicKey, c.store.identity.identity.publicKey);
+    const ab = safetyNumber(
+      a.store.identity.identity.publicKey,
+      b.store.identity.identity.publicKey,
+    );
+    const ba = safetyNumber(
+      b.store.identity.identity.publicKey,
+      a.store.identity.identity.publicKey,
+    );
+    const ac = safetyNumber(
+      a.store.identity.identity.publicKey,
+      c.store.identity.identity.publicKey,
+    );
     expect(ab).toBe(ba);
     expect(ab).not.toBe(ac);
     expect(ab.replace(/ /g, '')).toHaveLength(60);

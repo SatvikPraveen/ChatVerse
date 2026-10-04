@@ -14,7 +14,14 @@ import {
   type SenderKeyDistribution,
   type SenderKeyStateJSON,
 } from '@chatverse/crypto';
-import type { Conversation, EncryptedPayload, Message, OneTimePreKey, PreKeyBundle, PreKeyBundleUpload } from '@chatverse/protocol';
+import type {
+  Conversation,
+  EncryptedPayload,
+  Message,
+  OneTimePreKey,
+  PreKeyBundle,
+  PreKeyBundleUpload,
+} from '@chatverse/protocol';
 import type { KeyValueStore } from '../storage';
 import {
   DEFAULT_ONE_TIME_PREKEYS,
@@ -114,7 +121,9 @@ export class E2EE {
   static async open(opts: E2EEOptions): Promise<E2EE> {
     const e = new E2EE(opts);
     const { storage } = opts;
-    const stored = await storage.get<ReturnType<typeof serializeKeys>>(e.key(`${opts.deviceId}:keys`));
+    const stored = await storage.get<ReturnType<typeof serializeKeys>>(
+      e.key(`${opts.deviceId}:keys`),
+    );
     if (stored) {
       e.keys = deserializeKeys(stored);
     } else {
@@ -157,7 +166,10 @@ export class E2EE {
   safetyNumberWith(peerUserId: string): string | null {
     const rec = this.sessions[peerUserId];
     if (!rec) return null;
-    return safetyNumber(this.keys.store.identity.identity.publicKey, fromBase64Url(rec.peerIdentityKey));
+    return safetyNumber(
+      this.keys.store.identity.identity.publicKey,
+      fromBase64Url(rec.peerIdentityKey),
+    );
   }
 
   hasSessionWith(peerUserId: string): boolean {
@@ -187,8 +199,13 @@ export class E2EE {
    * Encrypt `plaintext` for a conversation. For groups, `preamble` holds sender-key distribution
    * control payloads that must be sent (in order) before `payload`.
    */
-  async encrypt(conversation: Conversation, plaintext: string): Promise<{ payload: EncryptedPayload; preamble: EncryptedPayload[] }> {
-    const others = conversation.participants.map((p) => p.userId).filter((id) => id !== this.opts.userId);
+  async encrypt(
+    conversation: Conversation,
+    plaintext: string,
+  ): Promise<{ payload: EncryptedPayload; preamble: EncryptedPayload[] }> {
+    const others = conversation.participants
+      .map((p) => p.userId)
+      .filter((id) => id !== this.opts.userId);
     if (conversation.kind === 'direct') {
       const peer = others[0];
       if (!peer) throw new Error('direct conversation has no peer');
@@ -212,7 +229,11 @@ export class E2EE {
     const preamble: EncryptedPayload[] = [];
     for (const member of others) {
       if (own.distributedTo.includes(member)) continue;
-      const control: ControlMessage = { t: 'skdm', conversationId, distribution: state.distribution() };
+      const control: ControlMessage = {
+        t: 'skdm',
+        conversationId,
+        distribution: state.distribution(),
+      };
       const { session, record } = await this.ensureSession(member);
       preamble.push(this.tagSender(session.encrypt(JSON.stringify(control))));
       record.session = session.toJSON();
@@ -224,7 +245,9 @@ export class E2EE {
     return { payload, preamble };
   }
 
-  private async ensureSession(peerUserId: string): Promise<{ session: PairwiseSession; record: SessionRecord }> {
+  private async ensureSession(
+    peerUserId: string,
+  ): Promise<{ session: PairwiseSession; record: SessionRecord }> {
     const existing = this.sessions[peerUserId];
     if (existing) return { session: PairwiseSession.fromJSON(existing.session), record: existing };
     const bundle = await this.opts.keyServer.fetchBundle(peerUserId);
@@ -242,7 +265,10 @@ export class E2EE {
 
   /** Stamp our device id into the (unauthenticated) routing header so the peer can reply to us. */
   private tagSender(payload: EncryptedPayload): EncryptedPayload {
-    const header = JSON.parse(utf8.decode(fromBase64Url(payload.header))) as Record<string, unknown>;
+    const header = JSON.parse(utf8.decode(fromBase64Url(payload.header))) as Record<
+      string,
+      unknown
+    >;
     header.from = this.opts.deviceId;
     return { ...payload, header: toBase64Url(utf8.encode(JSON.stringify(header))) };
   }
@@ -268,14 +294,19 @@ export class E2EE {
     return outcome;
   }
 
-  private async decryptPairwise(conversation: Conversation, message: Message, payload: EncryptedPayload): Promise<DecryptOutcome> {
+  private async decryptPairwise(
+    conversation: Conversation,
+    message: Message,
+    payload: EncryptedPayload,
+  ): Promise<DecryptOutcome> {
     let meta;
     try {
       meta = decodePairwise(payload).meta;
     } catch (err) {
       return { kind: 'failed', reason: (err as Error).message };
     }
-    if (meta.to !== this.opts.deviceId) return conversation.kind === 'group' ? { kind: 'hidden' } : { kind: 'other-device' };
+    if (meta.to !== this.opts.deviceId)
+      return conversation.kind === 'group' ? { kind: 'hidden' } : { kind: 'other-device' };
 
     const sender = message.senderId;
     const record = this.sessions[sender];
@@ -309,7 +340,9 @@ export class E2EE {
       const control = parseControl(text);
       if (control) {
         this.groups.peers[control.conversationId] ??= {};
-        this.groups.peers[control.conversationId]![sender] = SenderKeyState.fromDistribution(control.distribution).toJSON();
+        this.groups.peers[control.conversationId]![sender] = SenderKeyState.fromDistribution(
+          control.distribution,
+        ).toJSON();
         await this.persistGroups();
         return { kind: 'control', conversationId: control.conversationId };
       }
@@ -317,9 +350,18 @@ export class E2EE {
     return { kind: 'text', text };
   }
 
-  private respondToOffer(sender: string, fromDevice: string | undefined, peerIdentityKey: string, payload: EncryptedPayload): DecryptOutcome {
+  private respondToOffer(
+    sender: string,
+    fromDevice: string | undefined,
+    peerIdentityKey: string,
+    payload: EncryptedPayload,
+  ): DecryptOutcome {
     try {
-      const { session, plaintext } = PairwiseSession.respond(this.keys.store, fromDevice ?? 'unknown-device', payload);
+      const { session, plaintext } = PairwiseSession.respond(
+        this.keys.store,
+        fromDevice ?? 'unknown-device',
+        payload,
+      );
       this.sessions[sender] = {
         peerUserId: sender,
         peerDeviceId: fromDevice ?? 'unknown-device',
@@ -334,7 +376,11 @@ export class E2EE {
     }
   }
 
-  private async decryptGroup(conversation: Conversation, message: Message, payload: EncryptedPayload): Promise<DecryptOutcome> {
+  private async decryptGroup(
+    conversation: Conversation,
+    message: Message,
+    payload: EncryptedPayload,
+  ): Promise<DecryptOutcome> {
     const json = this.groups.peers[conversation.id]?.[message.senderId];
     if (!json) return { kind: 'waiting-keys' };
     const state = SenderKeyState.fromJSON(json);
@@ -369,7 +415,8 @@ export class E2EE {
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
       const entries = Object.entries(this.plaintext);
-      if (entries.length > PLAINTEXT_CACHE_MAX) this.plaintext = Object.fromEntries(entries.slice(-PLAINTEXT_CACHE_MAX));
+      if (entries.length > PLAINTEXT_CACHE_MAX)
+        this.plaintext = Object.fromEntries(entries.slice(-PLAINTEXT_CACHE_MAX));
       void this.opts.storage.set(this.key('plaintext'), this.plaintext);
     }, 250);
   }
@@ -402,7 +449,12 @@ function parseControl(text: string): ControlMessage | null {
   if (!text.startsWith('{')) return null;
   try {
     const obj = JSON.parse(text) as Partial<ControlMessage>;
-    if (obj.t === 'skdm' && typeof obj.conversationId === 'string' && obj.distribution && typeof obj.distribution.chainKey === 'string') {
+    if (
+      obj.t === 'skdm' &&
+      typeof obj.conversationId === 'string' &&
+      obj.distribution &&
+      typeof obj.distribution.chainKey === 'string'
+    ) {
       return obj as ControlMessage;
     }
   } catch {

@@ -39,7 +39,12 @@ export const useConversationsStore = create<ConversationsState>((set) => ({
     set((s) => {
       const byId = { ...s.byId };
       for (const c of conversations) byId[c.id] = c;
-      return { byId, order: sortIds(byId), loaded: true, nextCursor: nextCursor === undefined ? s.nextCursor : nextCursor };
+      return {
+        byId,
+        order: sortIds(byId),
+        loaded: true,
+        nextCursor: nextCursor === undefined ? s.nextCursor : nextCursor,
+      };
     }),
 
   remove: (id) =>
@@ -55,7 +60,11 @@ export const useConversationsStore = create<ConversationsState>((set) => ({
       if (!c) return s;
       const participants = c.participants.map((p) =>
         p.userId === userId
-          ? { ...p, lastDeliveredSeq: Math.max(p.lastDeliveredSeq, lastDeliveredSeq), lastReadSeq: Math.max(p.lastReadSeq, lastReadSeq) }
+          ? {
+              ...p,
+              lastDeliveredSeq: Math.max(p.lastDeliveredSeq, lastDeliveredSeq),
+              lastReadSeq: Math.max(p.lastReadSeq, lastReadSeq),
+            }
           : p,
       );
       return { byId: { ...s.byId, [conversationId]: { ...c, participants } } };
@@ -66,7 +75,9 @@ export const useConversationsStore = create<ConversationsState>((set) => ({
       const c = s.byId[conversationId];
       if (!c) return s;
       const participants = c.participants.map((p) =>
-        p.userId === userId && p.lastReadSeq < seq ? { ...p, lastReadSeq: seq, lastDeliveredSeq: Math.max(p.lastDeliveredSeq, seq) } : p,
+        p.userId === userId && p.lastReadSeq < seq
+          ? { ...p, lastReadSeq: seq, lastDeliveredSeq: Math.max(p.lastDeliveredSeq, seq) }
+          : p,
       );
       return { byId: { ...s.byId, [conversationId]: { ...c, participants } } };
     }),

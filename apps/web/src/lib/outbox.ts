@@ -71,9 +71,16 @@ export class Outbox {
     return this.deps.storage.set(this.key, this.items);
   }
 
-  async enqueue(item: Omit<OutboxItem, 'attempts' | 'nextAttemptAt' | 'createdAt'>): Promise<OutboxItem> {
+  async enqueue(
+    item: Omit<OutboxItem, 'attempts' | 'nextAttemptAt' | 'createdAt'>,
+  ): Promise<OutboxItem> {
     await this.load();
-    const full: OutboxItem = { ...item, attempts: 0, nextAttemptAt: 0, createdAt: new Date().toISOString() };
+    const full: OutboxItem = {
+      ...item,
+      attempts: 0,
+      nextAttemptAt: 0,
+      createdAt: new Date().toISOString(),
+    };
     this.items.push(full);
     await this.persist();
     return full;
@@ -127,7 +134,11 @@ export class Outbox {
           item.encrypted = await this.deps.encrypt(item);
           await this.persist();
         }
-        const input: MessageSendInput = { conversationId: item.conversationId, clientMsgId: item.clientMsgId, kind: item.kind };
+        const input: MessageSendInput = {
+          conversationId: item.conversationId,
+          clientMsgId: item.clientMsgId,
+          kind: item.kind,
+        };
         if (item.kind === 'encrypted') input.encrypted = item.encrypted;
         else if (item.text !== undefined) input.text = item.text;
         if (item.replyTo) input.replyTo = item.replyTo;

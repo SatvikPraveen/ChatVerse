@@ -51,8 +51,12 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('/node_modules/')) {
-            if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react';
-            if (id.includes('/node_modules/socket.io') || id.includes('/node_modules/engine.io')) return 'realtime';
+            if (
+              /\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)
+            )
+              return 'react';
+            if (id.includes('/node_modules/socket.io') || id.includes('/node_modules/engine.io'))
+              return 'realtime';
             if (id.includes('/node_modules/@noble/')) return 'crypto';
           }
           return undefined;

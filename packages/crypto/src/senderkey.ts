@@ -102,7 +102,9 @@ export class SenderKeyState {
   decrypt(message: SenderKeyMessage, aad: Uint8Array = new Uint8Array()): Uint8Array {
     if (message.keyId !== this.keyId) throw new Error('sender key id mismatch');
     const fullAad = concatBytes(aad, u32(message.keyId), u32(message.iteration));
-    if (!verify(message.signature, concatBytes(fullAad, message.ciphertext), this.signing.publicKey)) {
+    if (
+      !verify(message.signature, concatBytes(fullAad, message.ciphertext), this.signing.publicKey)
+    ) {
       throw new Error('sender key signature invalid');
     }
     const mk = this.messageKeyFor(message.iteration);
@@ -118,8 +120,10 @@ export class SenderKeyState {
       this.skipped.delete(iteration);
       return cached;
     }
-    if (iteration < this.iteration) throw new Error('message key already consumed (replay or duplicate)');
-    if (iteration - this.iteration > SENDER_KEY_MAX_SKIP) throw new Error('too many skipped sender-key iterations');
+    if (iteration < this.iteration)
+      throw new Error('message key already consumed (replay or duplicate)');
+    if (iteration - this.iteration > SENDER_KEY_MAX_SKIP)
+      throw new Error('too many skipped sender-key iterations');
     while (this.iteration < iteration) {
       this.skipped.set(this.iteration, mac(this.chainKey, CK_MESSAGE));
       this.chainKey = mac(this.chainKey, CK_NEXT);
@@ -138,7 +142,10 @@ export class SenderKeyState {
       chainKey: toBase64Url(this.chainKey),
       signingPublic: toBase64Url(this.signing.publicKey),
       signingPrivate: this.signing.privateKey ? toBase64Url(this.signing.privateKey) : null,
-      skipped: [...this.skipped.entries()].map(([iteration, mk]) => ({ iteration, mk: toBase64Url(mk) })),
+      skipped: [...this.skipped.entries()].map(([iteration, mk]) => ({
+        iteration,
+        mk: toBase64Url(mk),
+      })),
     };
   }
 
@@ -154,5 +161,11 @@ export class SenderKeyState {
 
 function randomKeyId(): number {
   const b = random(4);
-  return (((b[0] as number) << 24) | ((b[1] as number) << 16) | ((b[2] as number) << 8) | (b[3] as number)) >>> 0;
+  return (
+    (((b[0] as number) << 24) |
+      ((b[1] as number) << 16) |
+      ((b[2] as number) << 8) |
+      (b[3] as number)) >>>
+    0
+  );
 }

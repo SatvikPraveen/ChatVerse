@@ -95,11 +95,16 @@ describe('DoubleRatchet', () => {
   it('delivers any interleaving of sends in any order (property)', () => {
     fc.assert(
       fc.property(
-        fc.array(fc.record({ from: fc.constantFrom('a', 'b'), text: fc.string({ maxLength: 40 }) }), { maxLength: 40 }),
+        fc.array(
+          fc.record({ from: fc.constantFrom('a', 'b'), text: fc.string({ maxLength: 40 }) }),
+          { maxLength: 40 },
+        ),
         (script) => {
           const { alice, bob } = pair();
           // Bob cannot send before receiving at least one message from Alice (he lacks her ratchet key).
-          const ops = script.filter((s, i) => s.from === 'a' || script.slice(0, i).some((p) => p.from === 'a'));
+          const ops = script.filter(
+            (s, i) => s.from === 'a' || script.slice(0, i).some((p) => p.from === 'a'),
+          );
           // Deliver in order but process after shuffling within each sender's run, to exercise skips.
           const queueB: ReturnType<typeof alice.encrypt>[] = [];
           const queueA: ReturnType<typeof alice.encrypt>[] = [];
@@ -113,19 +118,25 @@ describe('DoubleRatchet', () => {
               // flush Alice's queue to Bob first so Bob has her key
               while (queueB.length) {
                 const idx = queueB.length - 1;
-                expect(utf8.decode(bob.decrypt(queueB.splice(idx, 1)[0]!))).toBe(expectedB.splice(idx, 1)[0]);
+                expect(utf8.decode(bob.decrypt(queueB.splice(idx, 1)[0]!))).toBe(
+                  expectedB.splice(idx, 1)[0],
+                );
               }
               queueA.push(bob.encrypt(utf8.encode(op.text)));
               expectedA.push(op.text);
               while (queueA.length) {
                 const idx = queueA.length - 1;
-                expect(utf8.decode(alice.decrypt(queueA.splice(idx, 1)[0]!))).toBe(expectedA.splice(idx, 1)[0]);
+                expect(utf8.decode(alice.decrypt(queueA.splice(idx, 1)[0]!))).toBe(
+                  expectedA.splice(idx, 1)[0],
+                );
               }
             }
           }
           while (queueB.length) {
             const idx = queueB.length - 1;
-            expect(utf8.decode(bob.decrypt(queueB.splice(idx, 1)[0]!))).toBe(expectedB.splice(idx, 1)[0]);
+            expect(utf8.decode(bob.decrypt(queueB.splice(idx, 1)[0]!))).toBe(
+              expectedB.splice(idx, 1)[0],
+            );
           }
         },
       ),

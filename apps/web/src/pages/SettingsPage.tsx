@@ -33,7 +33,9 @@ export function SettingsPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      setUser(await api.users.updateMe({ displayName: displayName.trim(), bio: bio.trim() || null }));
+      setUser(
+        await api.users.updateMe({ displayName: displayName.trim(), bio: bio.trim() || null }),
+      );
       toast('success', 'Profile saved');
     } catch (err) {
       toast('error', err instanceof ApiClientError ? err.message : 'Could not save');
@@ -64,7 +66,12 @@ export function SettingsPage() {
   }
 
   async function resetKeys() {
-    if (!confirm('Reset encryption keys? Existing encrypted conversations will need new sessions and older messages may become unreadable on this device.')) return;
+    if (
+      !confirm(
+        'Reset encryption keys? Existing encrypted conversations will need new sessions and older messages may become unreadable on this device.',
+      )
+    )
+      return;
     try {
       await resetEncryptionKeys();
       toast('success', 'New encryption keys published');
@@ -83,7 +90,12 @@ export function SettingsPage() {
         const sn = peer ? r.e2ee.safetyNumberWith(peer) : null;
         return `${conversationTitle(c, users, user!.id)}: ${sn ?? '(no session yet)'}`;
       });
-    const blob = new Blob([`ChatVerse safety numbers for ${user!.username} (device ${r.deviceId})\n\n${lines.join('\n')}\n`], { type: 'text/plain' });
+    const blob = new Blob(
+      [
+        `ChatVerse safety numbers for ${user!.username} (device ${r.deviceId})\n\n${lines.join('\n')}\n`,
+      ],
+      { type: 'text/plain' },
+    );
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'chatverse-safety-numbers.txt';
@@ -113,13 +125,26 @@ export function SettingsPage() {
               <label htmlFor="displayName" className="text-xs font-medium text-muted">
                 Display name
               </label>
-              <input id="displayName" className="input mt-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={64} />
+              <input
+                id="displayName"
+                className="input mt-1"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={64}
+              />
             </div>
             <div>
               <label htmlFor="bio" className="text-xs font-medium text-muted">
                 Bio
               </label>
-              <textarea id="bio" className="input mt-1" rows={2} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={280} />
+              <textarea
+                id="bio"
+                className="input mt-1"
+                rows={2}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                maxLength={280}
+              />
             </div>
             <button type="submit" className="btn-primary" disabled={busy}>
               Save
@@ -152,7 +177,12 @@ export function SettingsPage() {
           <h2 className="text-sm font-semibold">Notifications & privacy</h2>
           <label className="flex items-center justify-between text-sm">
             <span>Push notifications {pushSupported() ? '' : '(unavailable in this browser)'}</span>
-            <input type="checkbox" checked={pushOn} disabled={!pushSupported()} onChange={() => void togglePush()} />
+            <input
+              type="checkbox"
+              checked={pushOn}
+              disabled={!pushSupported()}
+              onChange={() => void togglePush()}
+            />
           </label>
           <label className="flex items-center justify-between text-sm">
             <span>Sound</span>
@@ -164,14 +194,20 @@ export function SettingsPage() {
           </label>
           <label className="flex items-center justify-between text-sm">
             <span>Send read receipts</span>
-            <input type="checkbox" checked={settings.privacy.readReceipts} onChange={(e) => void updateSettings({ privacy: { readReceipts: e.target.checked } })} />
+            <input
+              type="checkbox"
+              checked={settings.privacy.readReceipts}
+              onChange={(e) => void updateSettings({ privacy: { readReceipts: e.target.checked } })}
+            />
           </label>
           <label className="flex items-center justify-between text-sm">
             <span>Show my online status</span>
             <input
               type="checkbox"
               checked={settings.privacy.showOnlineStatus}
-              onChange={(e) => void updateSettings({ privacy: { showOnlineStatus: e.target.checked } })}
+              onChange={(e) =>
+                void updateSettings({ privacy: { showOnlineStatus: e.target.checked } })
+              }
             />
           </label>
         </section>
@@ -179,10 +215,15 @@ export function SettingsPage() {
         <section className="card mt-4 space-y-3 p-4">
           <h2 className="text-sm font-semibold">Encryption</h2>
           <p className="text-xs text-muted">
-            Device <code className="font-mono">{getRuntime()?.deviceId}</code>. Private keys never leave this browser.
+            Device <code className="font-mono">{getRuntime()?.deviceId}</code>. Private keys never
+            leave this browser.
           </p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn-ghost border border-border" onClick={exportSafetyNumbers}>
+            <button
+              type="button"
+              className="btn-ghost border border-border"
+              onClick={exportSafetyNumbers}
+            >
               Export safety numbers
             </button>
             <button type="button" className="btn-danger" onClick={() => void resetKeys()}>
@@ -192,7 +233,11 @@ export function SettingsPage() {
         </section>
 
         <section className="card mt-4 p-4">
-          <button type="button" className="btn-ghost border border-border" onClick={() => void logout()}>
+          <button
+            type="button"
+            className="btn-ghost border border-border"
+            onClick={() => void logout()}
+          >
             Log out
           </button>
         </section>

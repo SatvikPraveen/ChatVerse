@@ -40,7 +40,8 @@ function loadTheme(): Theme {
 }
 
 export function applyTheme(theme: Theme): void {
-  const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark =
+    theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
 }
 
@@ -73,6 +74,8 @@ export const useUiStore = create<UiState>((set) => ({
     setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 5_000);
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-  setReplyTo: (conversationId, messageId) => set((s) => ({ replyTo: { ...s.replyTo, [conversationId]: messageId } })),
-  setEditing: (conversationId, messageId) => set((s) => ({ editing: { ...s.editing, [conversationId]: messageId } })),
+  setReplyTo: (conversationId, messageId) =>
+    set((s) => ({ replyTo: { ...s.replyTo, [conversationId]: messageId } })),
+  setEditing: (conversationId, messageId) =>
+    set((s) => ({ editing: { ...s.editing, [conversationId]: messageId } })),
 }));

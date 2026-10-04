@@ -29,20 +29,37 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-border bg-surface md:w-80" aria-label="Conversations">
+    <aside
+      className="flex h-full w-full flex-col border-r border-border bg-surface md:w-80"
+      aria-label="Conversations"
+    >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Link to="/app/settings" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-surface-2" title="Settings">
+        <Link
+          to="/app/settings"
+          className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-surface-2"
+          title="Settings"
+        >
           <Avatar name={user.displayName} src={user.avatarUrl} size="sm" />
           <span className="truncate text-sm font-medium">{user.displayName}</span>
         </Link>
         <span className="ml-auto flex items-center gap-1">
-          <button type="button" className="btn-ghost p-2" onClick={() => setDialogOpen(true)} aria-label="New conversation">
+          <button
+            type="button"
+            className="btn-ghost p-2"
+            onClick={() => setDialogOpen(true)}
+            aria-label="New conversation"
+          >
             <MessageSquarePlus size={18} />
           </button>
           <Link to="/app/settings" className="btn-ghost p-2" aria-label="Settings">
             <Settings size={18} />
           </Link>
-          <button type="button" className="btn-ghost p-2" onClick={() => void logout()} aria-label="Log out">
+          <button
+            type="button"
+            className="btn-ghost p-2"
+            onClick={() => void logout()}
+            aria-label="Log out"
+          >
             <LogOut size={18} />
           </button>
         </span>

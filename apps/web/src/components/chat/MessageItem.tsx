@@ -40,8 +40,12 @@ export function MessageItem({
   const users = useUsersStore((s) => s.byId);
   const plaintext = useMessagesStore((s) => s.plaintext[message.id]);
   const decrypt = useMessagesStore((s) => s.decrypt[message.id]);
-  const replyTarget = useMessagesStore((s) => (message.replyTo ? s.conversations[message.conversationId]?.byId[message.replyTo] : undefined));
-  const replyPlain = useMessagesStore((s) => (message.replyTo ? s.plaintext[message.replyTo] : undefined));
+  const replyTarget = useMessagesStore((s) =>
+    message.replyTo ? s.conversations[message.conversationId]?.byId[message.replyTo] : undefined,
+  );
+  const replyPlain = useMessagesStore((s) =>
+    message.replyTo ? s.plaintext[message.replyTo] : undefined,
+  );
   const setReplyTo = useUiStore((s) => s.setReplyTo);
   const setEditing = useUiStore((s) => s.setEditing);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -52,18 +56,27 @@ export function MessageItem({
     : message.kind === 'encrypted'
       ? (plaintext ?? placeholderFor(decrypt))
       : (message.text ?? `[${message.kind}]`);
-  const muted = message.deletedAt !== null || (message.kind === 'encrypted' && plaintext === undefined);
+  const muted =
+    message.deletedAt !== null || (message.kind === 'encrypted' && plaintext === undefined);
 
   return (
     <li className={clsx('group flex items-end gap-2 px-4', own ? 'justify-end' : 'justify-start')}>
       {!own && (
         <span className="w-8 shrink-0">
-          {showSender && <Avatar name={displayNameOf(users, message.senderId)} src={users[message.senderId]?.avatarUrl} size="sm" />}
+          {showSender && (
+            <Avatar
+              name={displayNameOf(users, message.senderId)}
+              src={users[message.senderId]?.avatarUrl}
+              size="sm"
+            />
+          )}
         </span>
       )}
       <div className={clsx('relative max-w-[75%]', own && 'order-first')}>
         {showSender && !own && conversation.kind === 'group' && (
-          <p className="mb-0.5 ml-1 text-[11px] font-medium text-muted">{displayNameOf(users, message.senderId)}</p>
+          <p className="mb-0.5 ml-1 text-[11px] font-medium text-muted">
+            {displayNameOf(users, message.senderId)}
+          </p>
         )}
         <div
           className={clsx(
@@ -93,7 +106,9 @@ export function MessageItem({
                   type="button"
                   className={clsx(
                     'rounded-full border px-1.5 py-0.5 text-xs',
-                    r.userIds.includes(myUserId) ? 'border-accent bg-accent/15' : 'border-border bg-surface',
+                    r.userIds.includes(myUserId)
+                      ? 'border-accent bg-accent/15'
+                      : 'border-border bg-surface',
                   )}
                   onClick={() => void toggleReaction(message, r.emoji)}
                   title={r.userIds.map((id) => displayNameOf(users, id)).join(', ')}
@@ -111,26 +126,52 @@ export function MessageItem({
               own ? 'left-0' : 'right-0',
             )}
           >
-            <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setPickerOpen((o) => !o)} aria-label="React">
+            <button
+              type="button"
+              className="rounded-full p-1 hover:bg-surface-2"
+              onClick={() => setPickerOpen((o) => !o)}
+              aria-label="React"
+            >
               <SmilePlus size={14} />
             </button>
-            <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setReplyTo(message.conversationId, message.id)} aria-label="Reply">
+            <button
+              type="button"
+              className="rounded-full p-1 hover:bg-surface-2"
+              onClick={() => setReplyTo(message.conversationId, message.id)}
+              aria-label="Reply"
+            >
               <CornerUpLeft size={14} />
             </button>
             {own && (message.kind !== 'encrypted' || plaintext !== undefined) && (
-              <button type="button" className="rounded-full p-1 hover:bg-surface-2" onClick={() => setEditing(message.conversationId, message.id)} aria-label="Edit">
+              <button
+                type="button"
+                className="rounded-full p-1 hover:bg-surface-2"
+                onClick={() => setEditing(message.conversationId, message.id)}
+                aria-label="Edit"
+              >
                 <Pencil size={14} />
               </button>
             )}
             {own && (
-              <button type="button" className="rounded-full p-1 text-danger hover:bg-surface-2" onClick={() => void deleteMessage(message)} aria-label="Delete">
+              <button
+                type="button"
+                className="rounded-full p-1 text-danger hover:bg-surface-2"
+                onClick={() => void deleteMessage(message)}
+                aria-label="Delete"
+              >
                 <Trash2 size={14} />
               </button>
             )}
           </div>
         )}
         {pickerOpen && (
-          <div className={clsx('absolute z-10 mt-1 flex gap-1 rounded-full border border-border bg-surface px-2 py-1 shadow-lg', own ? 'right-0' : 'left-0')} role="menu">
+          <div
+            className={clsx(
+              'absolute z-10 mt-1 flex gap-1 rounded-full border border-border bg-surface px-2 py-1 shadow-lg',
+              own ? 'right-0' : 'left-0',
+            )}
+            role="menu"
+          >
             {QUICK_EMOJI.map((e) => (
               <button
                 key={e}

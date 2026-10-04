@@ -80,7 +80,13 @@ export function createApiClient(opts: {
     return refreshing;
   };
 
-  async function request<T>(method: string, path: string, body: unknown, options: RequestOptions, retried = false): Promise<T> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    options: RequestOptions,
+    retried = false,
+  ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (!options.anonymous) {
@@ -105,11 +111,20 @@ export function createApiClient(opts: {
 
     if (payload?.ok) return payload.data;
 
-    const error: ApiError = payload && !payload.ok
-      ? payload.error
-      : { code: response.ok ? ErrorCode.INTERNAL : ErrorCode.SERVICE_UNAVAILABLE, message: `HTTP ${response.status}` };
+    const error: ApiError =
+      payload && !payload.ok
+        ? payload.error
+        : {
+            code: response.ok ? ErrorCode.INTERNAL : ErrorCode.SERVICE_UNAVAILABLE,
+            message: `HTTP ${response.status}`,
+          };
 
-    if (response.status === 401 && error.code === ErrorCode.TOKEN_EXPIRED && !options.anonymous && !retried) {
+    if (
+      response.status === 401 &&
+      error.code === ErrorCode.TOKEN_EXPIRED &&
+      !options.anonymous &&
+      !retried
+    ) {
       const fresh = await refreshOnce();
       if (fresh) return request<T>(method, path, body, options, true);
     }

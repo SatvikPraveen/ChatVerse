@@ -54,12 +54,18 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setSession: (auth) => {
     persist({ accessToken: auth.accessToken, refreshToken: auth.refreshToken, user: auth.user });
-    set({ status: 'authenticated', user: auth.user, accessToken: auth.accessToken, refreshToken: auth.refreshToken });
+    set({
+      status: 'authenticated',
+      user: auth.user,
+      accessToken: auth.accessToken,
+      refreshToken: auth.refreshToken,
+    });
   },
 
   setUser: (user) =>
     set((s) => {
-      if (s.accessToken && s.refreshToken) persist({ accessToken: s.accessToken, refreshToken: s.refreshToken, user });
+      if (s.accessToken && s.refreshToken)
+        persist({ accessToken: s.accessToken, refreshToken: s.refreshToken, user });
       return { user };
     }),
 

@@ -12,7 +12,13 @@ import { PendingItem } from './PendingItem';
 const WINDOW = 150;
 const WINDOW_STEP = 100;
 
-export function MessageList({ conversation, myUserId }: { conversation: Conversation; myUserId: string }) {
+export function MessageList({
+  conversation,
+  myUserId,
+}: {
+  conversation: Conversation;
+  myUserId: string;
+}) {
   const state = useMessagesStore((s) => s.conversations[conversation.id]);
   const decrypt = useMessagesStore((s) => s.decrypt);
   const pendingAll = useMessagesStore((s) => s.pending);
@@ -29,7 +35,10 @@ export function MessageList({ conversation, myUserId }: { conversation: Conversa
   }, [state, decrypt, windowSize]);
 
   const pending = useMemo(
-    () => Object.values(pendingAll).filter((p) => p.conversationId === conversation.id).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
+    () =>
+      Object.values(pendingAll)
+        .filter((p) => p.conversationId === conversation.id)
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
     [pendingAll, conversation.id],
   );
 
@@ -90,7 +99,12 @@ export function MessageList({ conversation, myUserId }: { conversation: Conversa
     <div ref={scroller} onScroll={onScroll} className="scrollbar-thin flex-1 overflow-y-auto py-3">
       {canLoadOlder && (
         <div className="flex justify-center pb-2">
-          <button type="button" className="btn-ghost text-xs" onClick={() => void revealOlder()} disabled={loadingOlder}>
+          <button
+            type="button"
+            className="btn-ghost text-xs"
+            onClick={() => void revealOlder()}
+            disabled={loadingOlder}
+          >
             {loadingOlder ? 'Loading…' : 'Load older messages'}
           </button>
         </div>
@@ -103,11 +117,23 @@ export function MessageList({ conversation, myUserId }: { conversation: Conversa
           return (
             <div key={m.id}>
               {newDay && (
-                <li className="my-2 text-center text-[11px] uppercase tracking-wide text-muted" aria-label="Date">
-                  {new Date(m.createdAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                <li
+                  className="my-2 text-center text-[11px] uppercase tracking-wide text-muted"
+                  aria-label="Date"
+                >
+                  {new Date(m.createdAt).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </li>
               )}
-              <MessageItem message={m} conversation={conversation} myUserId={myUserId} showSender={showSender} />
+              <MessageItem
+                message={m}
+                conversation={conversation}
+                myUserId={myUserId}
+                showSender={showSender}
+              />
             </div>
           );
         })}

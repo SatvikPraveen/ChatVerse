@@ -9,7 +9,13 @@ import { useUsersStore } from '@/stores/users';
 import { useTypingNames } from '@/hooks/useTypingNames';
 import { Avatar } from '../ui/Avatar';
 
-export function ChatHeader({ conversation, myUserId }: { conversation: Conversation; myUserId: string }) {
+export function ChatHeader({
+  conversation,
+  myUserId,
+}: {
+  conversation: Conversation;
+  myUserId: string;
+}) {
   const users = useUsersStore((s) => s.byId);
   const peer = peerUserId(conversation, myUserId);
   const presence = usePresenceStore((s) => (peer ? s.byUserId[peer] : undefined));
@@ -38,17 +44,29 @@ export function ChatHeader({ conversation, myUserId }: { conversation: Conversat
       <Link to="/app" className="btn-ghost p-2 md:hidden" aria-label="Back to conversations">
         <ArrowLeft size={18} />
       </Link>
-      <Avatar name={title} src={conversation.avatarUrl} online={peer ? presence?.status === 'online' : undefined} />
+      <Avatar
+        name={title}
+        src={conversation.avatarUrl}
+        online={peer ? presence?.status === 'online' : undefined}
+      />
       <div className="min-w-0 flex-1">
         <h1 className="flex items-center gap-1 truncate text-sm font-semibold">
           {title}
-          {conversation.encrypted && <Lock size={12} className="text-muted" aria-label="End-to-end encrypted" />}
+          {conversation.encrypted && (
+            <Lock size={12} className="text-muted" aria-label="End-to-end encrypted" />
+          )}
         </h1>
         <p className="truncate text-xs text-muted" aria-live="polite">
           {subtitle}
         </p>
       </div>
-      <button type="button" className="btn-ghost p-2" onClick={() => setInfoOpen(!infoOpen)} aria-label="Conversation info" aria-pressed={infoOpen}>
+      <button
+        type="button"
+        className="btn-ghost p-2"
+        onClick={() => setInfoOpen(!infoOpen)}
+        aria-label="Conversation info"
+        aria-pressed={infoOpen}
+      >
         <Info size={18} />
       </button>
     </header>

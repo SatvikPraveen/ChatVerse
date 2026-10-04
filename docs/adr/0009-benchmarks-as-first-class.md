@@ -18,10 +18,10 @@ methodology and baseline results.
 
 ## Alternatives considered
 
-* **k6 / Artillery scripts.** Good HTTP tooling, but modelling the ack-and-fan-out semantics of
+- **k6 / Artillery scripts.** Good HTTP tooling, but modelling the ack-and-fan-out semantics of
   the socket protocol in their DSLs is awkward; a TypeScript harness reuses the protocol types.
 
 ## Consequences
 
-* Performance regressions are detectable by re-running the same scenario.
-* Numbers in the documentation can be traced to a result file.
+- Performance regressions are detectable by re-running the same scenario.
+- Numbers in the documentation can be traced to a result file.

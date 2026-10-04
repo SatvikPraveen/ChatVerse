@@ -26,7 +26,12 @@ export interface X3dhInitiatorResult {
   /** Associated data bound into every message of the resulting session. */
   associatedData: Uint8Array;
   /** Values Bob needs to run the responder side. */
-  initialMessage: { identityKey: Uint8Array; ephemeralKey: Uint8Array; signedPreKeyId: number; oneTimePreKeyId: number | null };
+  initialMessage: {
+    identityKey: Uint8Array;
+    ephemeralKey: Uint8Array;
+    signedPreKeyId: number;
+    oneTimePreKeyId: number | null;
+  };
   /** Bob's ratchet public key for initialising the Double Ratchet. */
   theirRatchetKey: Uint8Array;
 }
@@ -86,7 +91,10 @@ export function x3dhRespond(
 
   const sharedSecret = kdf(concatBytes(...parts), new Uint8Array(KEY_LEN), INFO, KEY_LEN);
   wipe(dh1, dh2, dh3);
-  return { sharedSecret, associatedData: concatBytes(initial.identityKey, ours.identity.identity.publicKey) };
+  return {
+    sharedSecret,
+    associatedData: concatBytes(initial.identityKey, ours.identity.identity.publicKey),
+  };
 }
 
 function wipe(...buffers: Uint8Array[]): void {

@@ -16,13 +16,13 @@ key error and returns the existing message (same `seq`, same `id`) with `ok: tru
 
 ## Alternatives considered
 
-* **Server-side de-duplication by content hash + time window.** Heuristic, rejects legitimate
+- **Server-side de-duplication by content hash + time window.** Heuristic, rejects legitimate
   repeated messages ("ok", "ok").
-* **Two-phase send (reserve id, then commit).** Twice the round trips for the common case.
+- **Two-phase send (reserve id, then commit).** Twice the round trips for the common case.
 
 ## Consequences
 
-* Clients get exactly-once *visible* delivery on top of an at-least-once transport.
-* Optimistic UI is straightforward: the pending message is keyed by `clientMsgId` and replaced
+- Clients get exactly-once _visible_ delivery on top of an at-least-once transport.
+- Optimistic UI is straightforward: the pending message is keyed by `clientMsgId` and replaced
   in place when the authoritative message arrives, whether via ack or via `message:new`.
-* The index costs one extra B-tree per message; acceptable.
+- The index costs one extra B-tree per message; acceptable.

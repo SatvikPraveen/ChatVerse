@@ -29,7 +29,11 @@ export function bindRealtime(r: Runtime): void {
       void (async () => {
         // Re-join rooms first so no live event is missed while we catch up.
         await Promise.all(
-          r.sync.trackedConversations().map((id) => emitWithAck('conversation:join', { conversationId: id }).catch(() => undefined)),
+          r.sync
+            .trackedConversations()
+            .map((id) =>
+              emitWithAck('conversation:join', { conversationId: id }).catch(() => undefined),
+            ),
         );
         await r.sync.resumeAll();
         await loadConversations().catch(() => undefined);
@@ -42,7 +46,9 @@ export function bindRealtime(r: Runtime): void {
   });
 
   socket.on('disconnect', () => ui.setConnection(navigator.onLine ? 'reconnecting' : 'offline'));
-  socket.io.on('reconnect_attempt', () => ui.setConnection(navigator.onLine ? 'reconnecting' : 'offline'));
+  socket.io.on('reconnect_attempt', () =>
+    ui.setConnection(navigator.onLine ? 'reconnecting' : 'offline'),
+  );
   socket.on('connect_error', (err) => {
     ui.setConnection(navigator.onLine ? 'reconnecting' : 'offline');
     if (/auth|token|expired/i.test(err.message)) {
@@ -70,7 +76,12 @@ export function bindRealtime(r: Runtime): void {
     const previous = s.conversations[message.conversationId]?.byId[message.id];
     s.upsert(message);
     const edited = message.editedAt && message.editedAt !== previous?.editedAt;
-    if (edited && message.kind === 'encrypted' && message.encrypted && message.senderId !== r.userId) {
+    if (
+      edited &&
+      message.kind === 'encrypted' &&
+      message.encrypted &&
+      message.senderId !== r.userId
+    ) {
       // Edited ciphertext under the same id: drop the stale plaintext and decrypt the new payload.
       r.e2ee.forgetPlaintext(message.id);
       const conv = useConversationsStore.getState().byId[message.conversationId];
@@ -85,7 +96,8 @@ export function bindRealtime(r: Runtime): void {
   socket.on('message:deleted', ({ conversationId, messageId }) => {
     const s = useMessagesStore.getState();
     const existing = s.conversations[conversationId]?.byId[messageId];
-    if (existing) s.upsert({ ...existing, deletedAt: new Date().toISOString(), text: null, encrypted: null });
+    if (existing)
+      s.upsert({ ...existing, deletedAt: new Date().toISOString(), text: null, encrypted: null });
   });
 
   socket.on('receipt:updated', (update) => useConversationsStore.getState().applyReceipt(update));
@@ -116,7 +128,10 @@ export function bindRealtime(r: Runtime): void {
   socket.on('user:updated', ({ user }) => useUsersStore.getState().upsert(user));
 
   socket.on('rate:limited', ({ event, retryAfterMs }) =>
-    ui.toast('error', `Slow down: ${event} is rate limited, retry in ${Math.ceil(retryAfterMs / 1000)}s`),
+    ui.toast(
+      'error',
+      `Slow down: ${event} is rate limited, retry in ${Math.ceil(retryAfterMs / 1000)}s`,
+    ),
   );
 
   socket.on('protocol:error', (error) => ui.toast('error', error.message));

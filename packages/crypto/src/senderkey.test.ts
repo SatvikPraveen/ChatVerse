@@ -42,7 +42,9 @@ describe('SenderKeyState', () => {
 
   it('round-trips through the wire envelope and persistence', () => {
     const alice = SenderKeyState.create();
-    const bob = SenderKeyState.fromJSON(JSON.parse(JSON.stringify(SenderKeyState.fromDistribution(alice.distribution()).toJSON())));
+    const bob = SenderKeyState.fromJSON(
+      JSON.parse(JSON.stringify(SenderKeyState.fromDistribution(alice.distribution()).toJSON())),
+    );
     const payload = encodeGroup(alice.encrypt(utf8.encode('via envelope')));
     expect(payload.suite).toBe('senderkey-xchacha20-v1');
     expect(utf8.decode(bob.decrypt(decodeGroup(payload)))).toBe('via envelope');

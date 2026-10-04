@@ -71,7 +71,10 @@ export const useMessagesStore = create<MessagesState>((set) => ({
       const conv = s.conversations[message.conversationId] ?? empty();
       const byId = { ...conv.byId, [message.id]: message };
       const next: Partial<MessagesState> = {
-        conversations: { ...s.conversations, [message.conversationId]: { ...conv, byId, order: sortBySeq(byId) } },
+        conversations: {
+          ...s.conversations,
+          [message.conversationId]: { ...conv, byId, order: sortBySeq(byId) },
+        },
       };
       // Resolve the optimistic copy sent from this device.
       const pending = s.pending[message.clientMsgId];
@@ -79,7 +82,8 @@ export const useMessagesStore = create<MessagesState>((set) => ({
         const rest = { ...s.pending };
         delete rest[message.clientMsgId];
         next.pending = rest;
-        if (!s.plaintext[message.id] && pending.text) next.plaintext = { ...s.plaintext, [message.id]: pending.text };
+        if (!s.plaintext[message.id] && pending.text)
+          next.plaintext = { ...s.plaintext, [message.id]: pending.text };
       }
       return next;
     }),
@@ -101,7 +105,12 @@ export const useMessagesStore = create<MessagesState>((set) => ({
       return {
         conversations: {
           ...s.conversations,
-          [conversationId]: { byId, order: sortBySeq(byId), hasOlder: opts?.hasOlder ?? conv.hasOlder, loaded: true },
+          [conversationId]: {
+            byId,
+            order: sortBySeq(byId),
+            hasOlder: opts?.hasOlder ?? conv.hasOlder,
+            loaded: true,
+          },
         },
         pending,
         plaintext,
@@ -114,16 +123,23 @@ export const useMessagesStore = create<MessagesState>((set) => ({
       if (!conv) return s;
       const byId = { ...conv.byId };
       delete byId[messageId];
-      return { conversations: { ...s.conversations, [conversationId]: { ...conv, byId, order: sortBySeq(byId) } } };
+      return {
+        conversations: {
+          ...s.conversations,
+          [conversationId]: { ...conv, byId, order: sortBySeq(byId) },
+        },
+      };
     }),
 
-  addPending: (message) => set((s) => ({ pending: { ...s.pending, [message.clientMsgId]: message } })),
+  addPending: (message) =>
+    set((s) => ({ pending: { ...s.pending, [message.clientMsgId]: message } })),
 
   setPendingStatus: (clientMsgId, status, error) =>
     set((s) => {
       const p = s.pending[clientMsgId];
       if (!p) return s;
-      const updated: PendingMessage = error === undefined ? { ...p, status } : { ...p, status, error };
+      const updated: PendingMessage =
+        error === undefined ? { ...p, status } : { ...p, status, error };
       return { pending: { ...s.pending, [clientMsgId]: updated } };
     }),
 

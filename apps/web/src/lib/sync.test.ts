@@ -25,12 +25,14 @@ function msg(seq: number, conversationId = 'c1'): Message {
 
 /** A fake server holding messages 1..head for c1, paging `limit` at a time. */
 function fakeServer(head: number) {
-  const pull = vi.fn(async (_c: string, afterSeq: number, limit: number): Promise<SyncPullResult> => {
-    const messages: Message[] = [];
-    for (let s = afterSeq + 1; s <= Math.min(head, afterSeq + limit); s++) messages.push(msg(s));
-    const last = messages[messages.length - 1]?.seq ?? afterSeq;
-    return { messages, headSeq: head, hasMore: last < head };
-  });
+  const pull = vi.fn(
+    async (_c: string, afterSeq: number, limit: number): Promise<SyncPullResult> => {
+      const messages: Message[] = [];
+      for (let s = afterSeq + 1; s <= Math.min(head, afterSeq + limit); s++) messages.push(msg(s));
+      const last = messages[messages.length - 1]?.seq ?? afterSeq;
+      return { messages, headSeq: head, hasMore: last < head };
+    },
+  );
   return pull;
 }
 
@@ -38,7 +40,10 @@ describe('Synchronizer', () => {
   it('applies contiguous messages without pulling', async () => {
     const pull = fakeServer(10);
     const applied: number[] = [];
-    const sync = new Synchronizer({ pull, apply: (_c, ms) => void applied.push(...ms.map((m) => m.seq)) });
+    const sync = new Synchronizer({
+      pull,
+      apply: (_c, ms) => void applied.push(...ms.map((m) => m.seq)),
+    });
     sync.setKnown('c1', 3);
     expect(await sync.onIncoming(msg(4))).toBe('applied');
     expect(await sync.onIncoming(msg(5))).toBe('applied');
@@ -51,7 +56,11 @@ describe('Synchronizer', () => {
   it('detects a gap and fills it in order across multiple pages', async () => {
     const pull = fakeServer(12);
     const applied: number[] = [];
-    const sync = new Synchronizer({ pull, apply: (_c, ms) => void applied.push(...ms.map((m) => m.seq)), limit: 4 });
+    const sync = new Synchronizer({
+      pull,
+      apply: (_c, ms) => void applied.push(...ms.map((m) => m.seq)),
+      limit: 4,
+    });
     sync.setKnown('c1', 2);
     expect(await sync.onIncoming(msg(12))).toBe('gap-filled');
     // 3..12 pulled in three pages of 4, then the live message re-applied

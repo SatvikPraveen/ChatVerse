@@ -40,8 +40,16 @@ describe('HybridLogicalClock', () => {
   it('is a total order: lexicographic order equals (wall, counter, node) order (property)', () => {
     fc.assert(
       fc.property(
-        fc.record({ wallMs: fc.nat(2 ** 45), counter: fc.nat(1000), nodeId: fc.constantFrom('a', 'b', 'c') }),
-        fc.record({ wallMs: fc.nat(2 ** 45), counter: fc.nat(1000), nodeId: fc.constantFrom('a', 'b', 'c') }),
+        fc.record({
+          wallMs: fc.nat(2 ** 45),
+          counter: fc.nat(1000),
+          nodeId: fc.constantFrom('a', 'b', 'c'),
+        }),
+        fc.record({
+          wallMs: fc.nat(2 ** 45),
+          counter: fc.nat(1000),
+          nodeId: fc.constantFrom('a', 'b', 'c'),
+        }),
         (x, y) => {
           const expected =
             x.wallMs !== y.wallMs

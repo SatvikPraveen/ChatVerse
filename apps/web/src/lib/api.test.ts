@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiClientError, buildQuery, createApiClient } from './api';
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 describe('createApiClient', () => {
@@ -16,7 +19,9 @@ describe('createApiClient', () => {
       fetchImpl,
       tokens: { getAccessToken: () => 'tok-1', refresh: async () => null },
     });
-    await expect(api.get<{ hello: string }>('/ping', { query: { a: 1, b: undefined } })).resolves.toEqual({ hello: 'world' });
+    await expect(
+      api.get<{ hello: string }>('/ping', { query: { a: 1, b: undefined } }),
+    ).resolves.toEqual({ hello: 'world' });
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://x/api/v1/ping?a=1');
   });
 
@@ -25,7 +30,10 @@ describe('createApiClient', () => {
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const auth = (init?.headers as Record<string, string>).Authorization;
       if (auth === 'Bearer expired') {
-        return jsonResponse(401, { ok: false, error: { code: 'TOKEN_EXPIRED', message: 'expired' } });
+        return jsonResponse(401, {
+          ok: false,
+          error: { code: 'TOKEN_EXPIRED', message: 'expired' },
+        });
       }
       return jsonResponse(200, { ok: true, data: 'fresh-data' });
     });
@@ -33,7 +41,11 @@ describe('createApiClient', () => {
       token = 'fresh';
       return token;
     });
-    const api = createApiClient({ baseUrl: 'http://x', fetchImpl, tokens: { getAccessToken: () => token, refresh } });
+    const api = createApiClient({
+      baseUrl: 'http://x',
+      fetchImpl,
+      tokens: { getAccessToken: () => token, refresh },
+    });
     // Two concurrent requests share a single refresh.
     const [a, b] = await Promise.all([api.get<string>('/a'), api.get<string>('/b')]);
     expect(a).toBe('fresh-data');

@@ -29,14 +29,14 @@ replaced by in-memory implementations).
 
 ## Conventions
 
-* **Commits** follow Conventional Commits (`feat(api): ...`, `fix(crypto): ...`,
+- **Commits** follow Conventional Commits (`feat(api): ...`, `fix(crypto): ...`,
   `docs: ...`). One logical change per commit.
-* **Wire changes** go through `packages/protocol` and `docs/PROTOCOL.md` together.
-* **Design decisions** get an ADR in `docs/adr/`.
-* **Security-relevant changes** update `docs/SECURITY.md` and add a test demonstrating the
+- **Wire changes** go through `packages/protocol` and `docs/PROTOCOL.md` together.
+- **Design decisions** get an ADR in `docs/adr/`.
+- **Security-relevant changes** update `docs/SECURITY.md` and add a test demonstrating the
   property.
-* **Performance changes** include a before/after run of the relevant `bench/` scenario.
-* Prettier formats the code; ESLint enforces correctness rules. No `any`.
+- **Performance changes** include a before/after run of the relevant `bench/` scenario.
+- Prettier formats the code; ESLint enforces correctness rules. No `any`.
 
 ## Reporting security issues
 

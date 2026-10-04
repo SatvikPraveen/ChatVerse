@@ -1,7 +1,11 @@
 import type { Conversation, PublicUser } from '@chatverse/protocol';
 
 /** Display title of a conversation: the group name, or the other participant's name. */
-export function conversationTitle(conversation: Conversation, users: Record<string, PublicUser>, myUserId: string): string {
+export function conversationTitle(
+  conversation: Conversation,
+  users: Record<string, PublicUser>,
+  myUserId: string,
+): string {
   if (conversation.kind === 'group') return conversation.name ?? 'Group';
   const other = conversation.participants.find((p) => p.userId !== myUserId);
   if (!other) return 'Just you';

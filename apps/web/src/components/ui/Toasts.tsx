@@ -7,7 +7,10 @@ export function Toasts() {
   const dismiss = useUiStore((s) => s.dismissToast);
   if (toasts.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2" aria-live="polite">
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2"
+      aria-live="polite"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -20,7 +23,12 @@ export function Toasts() {
           )}
         >
           <span className="flex-1">{t.message}</span>
-          <button type="button" className="text-muted hover:text-text" onClick={() => dismiss(t.id)} aria-label="Dismiss">
+          <button
+            type="button"
+            className="text-muted hover:text-text"
+            onClick={() => dismiss(t.id)}
+            aria-label="Dismiss"
+          >
             <X size={14} />
           </button>
         </div>

@@ -98,14 +98,20 @@ export function startSession(): Promise<Runtime> {
     const user = useAuthStore.getState().user;
     if (!user) throw new Error('not authenticated');
     const deviceId = await getDeviceId();
-    const e2ee = await E2EE.open({ userId: user.id, deviceId, storage: kv, keyServer: keyServer() });
+    const e2ee = await E2EE.open({
+      userId: user.id,
+      deviceId,
+      storage: kv,
+      keyServer: keyServer(),
+    });
 
     // Lazy imports break the import cycle runtime -> messaging -> runtime.
     const messaging = await import('./messaging');
     const realtime = await import('./realtime');
 
     const sync = new Synchronizer({
-      pull: (conversationId, afterSeq, limit) => emitWithAck('sync:pull', { conversationId, afterSeq, limit }),
+      pull: (conversationId, afterSeq, limit) =>
+        emitWithAck('sync:pull', { conversationId, afterSeq, limit }),
       apply: (conversationId, messages) => messaging.ingestMessages(conversationId, messages),
     });
 
@@ -116,7 +122,8 @@ export function startSession(): Promise<Runtime> {
       encrypt: (item) => messaging.encryptOutboxItem(item),
       onSent: (item, message) => messaging.onOutboxSent(item, message),
       onFailed: (item, error) => messaging.onOutboxFailed(item, error),
-      onRetryScheduled: (item) => useMessagesStore.getState().setPendingStatus(item.clientMsgId, 'queued'),
+      onRetryScheduled: (item) =>
+        useMessagesStore.getState().setPendingStatus(item.clientMsgId, 'queued'),
     });
 
     const socket = connectSocket({ getToken: tokens.getAccessToken, deviceId });
@@ -158,6 +165,11 @@ export async function logout(): Promise<void> {
 export async function resetEncryptionKeys(): Promise<void> {
   const r = requireRuntime();
   await r.e2ee.reset();
-  const fresh = await E2EE.open({ userId: r.userId, deviceId: r.deviceId, storage: kv, keyServer: keyServer() });
+  const fresh = await E2EE.open({
+    userId: r.userId,
+    deviceId: r.deviceId,
+    storage: kv,
+    keyServer: keyServer(),
+  });
   runtime = { ...r, e2ee: fresh };
 }

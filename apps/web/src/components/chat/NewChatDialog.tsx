@@ -57,7 +57,16 @@ export function NewChatDialog({ open, onClose }: { open: boolean; onClose: () =>
       const conversation = await api.conversations.create({
         kind: isGroup ? 'group' : 'direct',
         participantIds: selected.map((u) => u.id),
-        ...(isGroup ? { name: name.trim() || selected.map((u) => u.displayName).join(', ').slice(0, 100) } : {}),
+        ...(isGroup
+          ? {
+              name:
+                name.trim() ||
+                selected
+                  .map((u) => u.displayName)
+                  .join(', ')
+                  .slice(0, 100),
+            }
+          : {}),
         encrypted,
       });
       useUsersStore.getState().upsertMany(selected);
@@ -117,17 +126,32 @@ export function NewChatDialog({ open, onClose }: { open: boolean; onClose: () =>
           ))}
       </ul>
       {isGroup && (
-        <input className="input mt-3" placeholder="Group name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+        <input
+          className="input mt-3"
+          placeholder="Group name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={100}
+        />
       )}
       <label className="mt-3 flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={encrypted} onChange={(e) => setEncrypted(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={encrypted}
+          onChange={(e) => setEncrypted(e.target.checked)}
+        />
         End-to-end encrypted
       </label>
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" className="btn-ghost" onClick={onClose}>
           Cancel
         </button>
-        <button type="button" className="btn-primary" disabled={selected.length === 0 || busy} onClick={create}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={selected.length === 0 || busy}
+          onClick={create}
+        >
           {isGroup ? 'Create group' : 'Start chat'}
         </button>
       </div>

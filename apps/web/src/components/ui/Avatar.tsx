@@ -1,7 +1,14 @@
 import clsx from 'clsx';
 import { initials } from '@/lib/conversation-title';
 
-const PALETTE = ['bg-sky-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600', 'bg-teal-600'];
+const PALETTE = [
+  'bg-sky-600',
+  'bg-emerald-600',
+  'bg-violet-600',
+  'bg-amber-600',
+  'bg-rose-600',
+  'bg-teal-600',
+];
 
 function colorFor(seed: string): string {
   let h = 0;
@@ -22,7 +29,8 @@ export function Avatar({
   online?: boolean;
   className?: string;
 }) {
-  const dim = size === 'sm' ? 'h-8 w-8 text-xs' : size === 'lg' ? 'h-16 w-16 text-xl' : 'h-10 w-10 text-sm';
+  const dim =
+    size === 'sm' ? 'h-8 w-8 text-xs' : size === 'lg' ? 'h-16 w-16 text-xl' : 'h-10 w-10 text-sm';
   return (
     <span className={clsx('relative inline-flex shrink-0', className)}>
       {src ? (
@@ -30,7 +38,11 @@ export function Avatar({
       ) : (
         <span
           aria-hidden
-          className={clsx(dim, colorFor(name), 'inline-flex items-center justify-center rounded-full font-semibold text-white')}
+          className={clsx(
+            dim,
+            colorFor(name),
+            'inline-flex items-center justify-center rounded-full font-semibold text-white',
+          )}
         >
           {initials(name) || '?'}
         </span>

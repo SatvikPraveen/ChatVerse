@@ -2,7 +2,17 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
 
 /** Accessible dialog: focus trap via <dialog>, Escape closes, backdrop click closes. */
-export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {

@@ -7,11 +7,16 @@ export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 /** Client events of the shape (input, ack) and their input/result types. */
 type AckEventMap = {
-  [K in keyof ClientToServerEvents]: Parameters<ClientToServerEvents[K]> extends [infer I, AckFn<infer R>]
+  [K in keyof ClientToServerEvents]: Parameters<ClientToServerEvents[K]> extends [
+    infer I,
+    AckFn<infer R>,
+  ]
     ? { input: I; result: R }
     : never;
 };
-export type AckEventName = { [K in keyof AckEventMap]: AckEventMap[K] extends never ? never : K }[keyof AckEventMap];
+export type AckEventName = {
+  [K in keyof AckEventMap]: AckEventMap[K] extends never ? never : K;
+}[keyof AckEventMap];
 export type AckInput<E extends AckEventName> = AckEventMap[E]['input'];
 export type AckResult<E extends AckEventName> = AckEventMap[E]['result'];
 
@@ -28,7 +33,10 @@ export function getSocket(): AppSocket | null {
  * backoff + jitter; we only configure the bounds. The access token is read lazily on every
  * (re)connection attempt so a refreshed token is picked up automatically.
  */
-export function connectSocket(opts: { getToken: () => string | null; deviceId: string }): AppSocket {
+export function connectSocket(opts: {
+  getToken: () => string | null;
+  deviceId: string;
+}): AppSocket {
   disconnectSocket();
   const s: AppSocket = io(env.apiUrl || '/', {
     autoConnect: false,
@@ -65,12 +73,18 @@ export class SocketNotConnectedError extends Error {
  * Emit an acknowledged event and resolve with its data, rejecting with `ApiClientError` on
  * `{ ok: false }` and with `SocketNotConnectedError` when offline (callers queue in the outbox).
  */
-export function emitWithAck<E extends AckEventName>(event: E, input: AckInput<E>, s: AppSocket | null = socket): Promise<AckResult<E>> {
+export function emitWithAck<E extends AckEventName>(
+  event: E,
+  input: AckInput<E>,
+  s: AppSocket | null = socket,
+): Promise<AckResult<E>> {
   if (!s || !s.connected) return Promise.reject(new SocketNotConnectedError());
   // The typed Socket's `timeout().emit` overloads do not model the ack parameter well; use a
   // narrow structural view instead of `any`.
   const emitter = s as unknown as {
-    timeout(ms: number): { emit(ev: string, input: unknown, cb: (err: Error | null, ack?: Ack<unknown>) => void): void };
+    timeout(ms: number): {
+      emit(ev: string, input: unknown, cb: (err: Error | null, ack?: Ack<unknown>) => void): void;
+    };
   };
   return new Promise((resolve, reject) => {
     emitter.timeout(ACK_TIMEOUT_MS).emit(event, input, (err, ack) => {

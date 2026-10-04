@@ -48,13 +48,29 @@ export function LoginPage() {
           <label htmlFor="email" className="text-xs font-medium text-muted">
             Email
           </label>
-          <input id="email" type="email" autoComplete="email" className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            className="input mt-1"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label htmlFor="password" className="text-xs font-medium text-muted">
             Password
           </label>
-          <input id="password" type="password" autoComplete="current-password" className="input mt-1" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            className="input mt-1"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
         {error && (
           <p role="alert" className="text-sm text-danger">

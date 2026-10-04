@@ -6,9 +6,9 @@ The threat model, cryptographic design and known limitations are documented in
 ## Supported versions
 
 | Version | Supported |
-| --- | --- |
-| 2.x | Yes |
-| 1.x | No |
+| ------- | --------- |
+| 2.x     | Yes       |
+| 1.x     | No        |
 
 ## Reporting a vulnerability
 

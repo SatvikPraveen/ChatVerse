@@ -5,7 +5,7 @@
 ## Context
 
 The scaffold stored a `readBy: [{ user, readAt }]` array on every message. Marking a
-conversation read then meant updating up to *N* message documents, and rendering read state
+conversation read then meant updating up to _N_ message documents, and rendering read state
 meant scanning those arrays. In a group of 100 people with 10,000 messages this is a million
 array entries.
 
@@ -18,12 +18,12 @@ Because `seq` is dense and monotonic (ADR 0002), "P has read message m" is simpl
 
 ## Alternatives considered
 
-* **Per-message read sets.** O(messages × participants) storage and writes.
-* **Separate receipts collection.** Still O(messages) rows; adds a join to render.
+- **Per-message read sets.** O(messages × participants) storage and writes.
+- **Separate receipts collection.** Still O(messages) rows; adds a join to render.
 
 ## Consequences
 
-* Receipt state is O(participants) per conversation and one field update per read.
-* Clients compute unread counts locally as `headSeq - lastReadSeq`.
-* Per-message granularity of *who* read *which* message is lost; the watermark says "everything
+- Receipt state is O(participants) per conversation and one field update per read.
+- Clients compute unread counts locally as `headSeq - lastReadSeq`.
+- Per-message granularity of _who_ read _which_ message is lost; the watermark says "everything
   up to here", which is what every mainstream messenger shows anyway.

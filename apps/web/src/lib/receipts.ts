@@ -36,7 +36,9 @@ const readPending = new Map<string, number>();
 const readSent = new Map<string, number>();
 
 function windowIsActive(): boolean {
-  return typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus();
+  return (
+    typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus()
+  );
 }
 
 function flushRead(): void {

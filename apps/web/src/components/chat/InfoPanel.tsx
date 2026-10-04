@@ -11,7 +11,13 @@ import { useUiStore } from '@/stores/ui';
 import { displayNameOf, useUsersStore } from '@/stores/users';
 import { Avatar } from '../ui/Avatar';
 
-export function InfoPanel({ conversation, myUserId }: { conversation: Conversation; myUserId: string }) {
+export function InfoPanel({
+  conversation,
+  myUserId,
+}: {
+  conversation: Conversation;
+  myUserId: string;
+}) {
   const users = useUsersStore((s) => s.byId);
   const presence = usePresenceStore((s) => s.byUserId);
   const close = useUiStore((s) => s.setInfoPanelOpen);
@@ -49,10 +55,18 @@ export function InfoPanel({ conversation, myUserId }: { conversation: Conversati
   }
 
   return (
-    <aside className="flex w-full flex-col border-l border-border bg-surface md:w-80" aria-label="Conversation info">
+    <aside
+      className="flex w-full flex-col border-l border-border bg-surface md:w-80"
+      aria-label="Conversation info"
+    >
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold">Details</h2>
-        <button type="button" className="btn-ghost p-1" onClick={() => close(false)} aria-label="Close details">
+        <button
+          type="button"
+          className="btn-ghost p-1"
+          onClick={() => close(false)}
+          aria-label="Close details"
+        >
           <X size={18} />
         </button>
       </div>
@@ -61,14 +75,19 @@ export function InfoPanel({ conversation, myUserId }: { conversation: Conversati
           <Avatar name={title} src={conversation.avatarUrl} size="lg" />
           <p className="font-semibold">{title}</p>
           {conversation.topic && <p className="text-xs text-muted">{conversation.topic}</p>}
-          <p className="text-xs text-muted">{conversation.encrypted ? '🔒 End-to-end encrypted' : 'Not encrypted'}</p>
+          <p className="text-xs text-muted">
+            {conversation.encrypted ? '🔒 End-to-end encrypted' : 'Not encrypted'}
+          </p>
         </div>
 
         {peer && conversation.encrypted && (
           <section className="mt-6">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Safety number</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Safety number
+            </h3>
             <p className="mt-1 text-xs text-muted">
-              Compare this number with {displayNameOf(users, peer)} out of band. If it matches, nobody is intercepting your messages.
+              Compare this number with {displayNameOf(users, peer)} out of band. If it matches,
+              nobody is intercepting your messages.
             </p>
             <p className="mt-2 break-words rounded-lg bg-surface-2 p-2 font-mono text-xs leading-relaxed">
               {safety ?? 'Available after the first encrypted message.'}
@@ -77,15 +96,28 @@ export function InfoPanel({ conversation, myUserId }: { conversation: Conversati
         )}
 
         <section className="mt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Members ({conversation.participants.length})</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Members ({conversation.participants.length})
+          </h3>
           <ul className="mt-2 space-y-1">
             {conversation.participants.map((p) => (
               <li key={p.userId} className="flex items-center gap-2 text-sm">
-                <Avatar name={displayNameOf(users, p.userId)} src={users[p.userId]?.avatarUrl} size="sm" online={presence[p.userId]?.status === 'online'} />
-                <span className="truncate">{p.userId === myUserId ? 'You' : displayNameOf(users, p.userId)}</span>
+                <Avatar
+                  name={displayNameOf(users, p.userId)}
+                  src={users[p.userId]?.avatarUrl}
+                  size="sm"
+                  online={presence[p.userId]?.status === 'online'}
+                />
+                <span className="truncate">
+                  {p.userId === myUserId ? 'You' : displayNameOf(users, p.userId)}
+                </span>
                 <span className="ml-auto text-[11px] text-muted">{p.role}</span>
                 {canManage && p.userId !== myUserId && p.role !== 'owner' && (
-                  <button type="button" className="text-xs text-danger underline" onClick={() => void remove(p.userId)}>
+                  <button
+                    type="button"
+                    className="text-xs text-danger underline"
+                    onClick={() => void remove(p.userId)}
+                  >
                     remove
                   </button>
                 )}

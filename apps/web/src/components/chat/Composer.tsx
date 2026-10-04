@@ -18,8 +18,12 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   const setEditing = useUiStore((s) => s.setEditing);
   const toast = useUiStore((s) => s.toast);
   const users = useUsersStore((s) => s.byId);
-  const replyTarget = useMessagesStore((s) => (replyToId ? s.conversations[conversation.id]?.byId[replyToId] : undefined));
-  const editTarget = useMessagesStore((s) => (editingId ? s.conversations[conversation.id]?.byId[editingId] : undefined));
+  const replyTarget = useMessagesStore((s) =>
+    replyToId ? s.conversations[conversation.id]?.byId[replyToId] : undefined,
+  );
+  const editTarget = useMessagesStore((s) =>
+    editingId ? s.conversations[conversation.id]?.byId[editingId] : undefined,
+  );
   const editPlain = useMessagesStore((s) => (editingId ? s.plaintext[editingId] : undefined));
 
   // Entering edit mode loads the current text into the box.
@@ -96,7 +100,9 @@ export function Composer({ conversation }: { conversation: Conversation }) {
       {(replyTarget || editTarget) && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-xs">
           <span className="truncate text-muted">
-            {editTarget ? 'Editing message' : `Replying to ${displayNameOf(users, replyTarget!.senderId)}`}
+            {editTarget
+              ? 'Editing message'
+              : `Replying to ${displayNameOf(users, replyTarget!.senderId)}`}
           </span>
           <button
             type="button"
@@ -120,11 +126,20 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           maxLength={LIMITS.MESSAGE_TEXT_MAX}
-          placeholder={conversation.encrypted ? 'Encrypted message… (Enter to send, Shift+Enter for a new line)' : 'Message… (Enter to send)'}
+          placeholder={
+            conversation.encrypted
+              ? 'Encrypted message… (Enter to send, Shift+Enter for a new line)'
+              : 'Message… (Enter to send)'
+          }
           aria-label="Message"
           className="input max-h-40 resize-none"
         />
-        <button type="submit" className="btn-primary h-10 w-10 shrink-0 p-0" disabled={!value.trim() || busy} aria-label={editTarget ? 'Save' : 'Send'}>
+        <button
+          type="submit"
+          className="btn-primary h-10 w-10 shrink-0 p-0"
+          disabled={!value.trim() || busy}
+          aria-label={editTarget ? 'Save' : 'Send'}
+        >
           <Send size={18} />
         </button>
       </div>

@@ -1,4 +1,11 @@
-import type { Conversation, EncryptedPayload, Message, OneTimePreKey, PreKeyBundle, PreKeyBundleUpload } from '@chatverse/protocol';
+import type {
+  Conversation,
+  EncryptedPayload,
+  Message,
+  OneTimePreKey,
+  PreKeyBundle,
+  PreKeyBundleUpload,
+} from '@chatverse/protocol';
 import { describe, expect, it } from 'vitest';
 import { memoryStore } from '../storage';
 import { E2EE, type KeyServer } from './e2ee';
@@ -45,8 +52,22 @@ const direct: Conversation = {
   avatarUrl: null,
   createdBy: 'alice',
   participants: [
-    { userId: 'alice', role: 'member', joinedAt: '', lastReadSeq: 0, lastDeliveredSeq: 0, muted: false },
-    { userId: 'bob', role: 'member', joinedAt: '', lastReadSeq: 0, lastDeliveredSeq: 0, muted: false },
+    {
+      userId: 'alice',
+      role: 'member',
+      joinedAt: '',
+      lastReadSeq: 0,
+      lastDeliveredSeq: 0,
+      muted: false,
+    },
+    {
+      userId: 'bob',
+      role: 'member',
+      joinedAt: '',
+      lastReadSeq: 0,
+      lastDeliveredSeq: 0,
+      muted: false,
+    },
   ],
   encrypted: true,
   headSeq: 0,
@@ -60,7 +81,17 @@ const group: Conversation = {
   id: 'g'.repeat(24),
   kind: 'group',
   name: 'Team',
-  participants: [...direct.participants, { userId: 'carol', role: 'member', joinedAt: '', lastReadSeq: 0, lastDeliveredSeq: 0, muted: false }],
+  participants: [
+    ...direct.participants,
+    {
+      userId: 'carol',
+      role: 'member',
+      joinedAt: '',
+      lastReadSeq: 0,
+      lastDeliveredSeq: 0,
+      muted: false,
+    },
+  ],
 };
 
 let seq = 0;
@@ -86,7 +117,11 @@ function wire(conversationId: string, senderId: string, payload: EncryptedPayloa
   };
 }
 
-async function device(userId: string, deviceId: string, keyServer: ReturnType<typeof fakeKeyServer>) {
+async function device(
+  userId: string,
+  deviceId: string,
+  keyServer: ReturnType<typeof fakeKeyServer>,
+) {
   keyServer.register(userId, deviceId);
   const storage = memoryStore();
   const e2ee = await E2EE.open({ userId, deviceId, storage, keyServer });
@@ -107,7 +142,10 @@ describe('E2EE engine', () => {
     expect(await bob.e2ee.decrypt(direct, m1)).toEqual({ kind: 'text', text: 'hello bob' });
 
     const reply = await bob.e2ee.encrypt(direct, 'hi alice');
-    expect(await alice.e2ee.decrypt(direct, wire(direct.id, 'bob', reply.payload))).toEqual({ kind: 'text', text: 'hi alice' });
+    expect(await alice.e2ee.decrypt(direct, wire(direct.id, 'bob', reply.payload))).toEqual({
+      kind: 'text',
+      text: 'hi alice',
+    });
 
     expect(alice.e2ee.safetyNumberWith('bob')).toBe(bob.e2ee.safetyNumberWith('alice'));
     expect(alice.e2ee.safetyNumberWith('bob')).toMatch(/^(\d{5} ){11}\d{5}$/);
@@ -120,10 +158,23 @@ describe('E2EE engine', () => {
     const first = await alice.e2ee.encrypt(direct, 'one');
     await bob.e2ee.decrypt(direct, wire(direct.id, 'alice', first.payload));
 
-    const alice2 = await E2EE.open({ userId: 'alice', deviceId: 'alice-dev-00001', storage: alice.storage, keyServer: ks });
-    const bob2 = await E2EE.open({ userId: 'bob', deviceId: 'bob-dev-0000001', storage: bob.storage, keyServer: ks });
+    const alice2 = await E2EE.open({
+      userId: 'alice',
+      deviceId: 'alice-dev-00001',
+      storage: alice.storage,
+      keyServer: ks,
+    });
+    const bob2 = await E2EE.open({
+      userId: 'bob',
+      deviceId: 'bob-dev-0000001',
+      storage: bob.storage,
+      keyServer: ks,
+    });
     const second = await bob2.encrypt(direct, 'two');
-    expect(await alice2.decrypt(direct, wire(direct.id, 'bob', second.payload))).toEqual({ kind: 'text', text: 'two' });
+    expect(await alice2.decrypt(direct, wire(direct.id, 'bob', second.payload))).toEqual({
+      kind: 'text',
+      text: 'two',
+    });
   });
 
   it('messages addressed to another device of ours are reported, not decrypted', async () => {
@@ -132,9 +183,19 @@ describe('E2EE engine', () => {
     await device('bob', 'bob-dev-0000001', ks);
     const bob2 = await device('bob', 'bob-dev-0000002', ks); // replaces bob's registered device
     const { payload } = await alice.e2ee.encrypt(direct, 'for device 2');
-    const bob1 = await E2EE.open({ userId: 'bob', deviceId: 'bob-dev-0000001', storage: memoryStore(), keyServer: ks });
-    expect(await bob1.decrypt(direct, wire(direct.id, 'alice', payload))).toEqual({ kind: 'other-device' });
-    expect(await bob2.e2ee.decrypt(direct, wire(direct.id, 'alice', payload))).toEqual({ kind: 'text', text: 'for device 2' });
+    const bob1 = await E2EE.open({
+      userId: 'bob',
+      deviceId: 'bob-dev-0000001',
+      storage: memoryStore(),
+      keyServer: ks,
+    });
+    expect(await bob1.decrypt(direct, wire(direct.id, 'alice', payload))).toEqual({
+      kind: 'other-device',
+    });
+    expect(await bob2.e2ee.decrypt(direct, wire(direct.id, 'alice', payload))).toEqual({
+      kind: 'text',
+      text: 'for device 2',
+    });
   });
 
   it('group conversation: sender keys are distributed through pairwise control messages', async () => {
@@ -162,7 +223,10 @@ describe('E2EE engine', () => {
     // Subsequent messages need no preamble.
     const next = await alice.e2ee.encrypt(group, 'second');
     expect(next.preamble).toEqual([]);
-    expect(await carol.e2ee.decrypt(group, wire(group.id, 'alice', next.payload))).toEqual({ kind: 'text', text: 'second' });
+    expect(await carol.e2ee.decrypt(group, wire(group.id, 'alice', next.payload))).toEqual({
+      kind: 'text',
+      text: 'second',
+    });
   });
 
   it('group: membership change rotates the sender key', async () => {
@@ -175,11 +239,17 @@ describe('E2EE engine', () => {
     for (const p of first.preamble) await bob.e2ee.decrypt(group, wire(group.id, 'alice', p));
     await bob.e2ee.decrypt(group, wire(group.id, 'alice', first.payload));
 
-    const smaller: Conversation = { ...group, participants: group.participants.filter((p) => p.userId !== 'carol') };
+    const smaller: Conversation = {
+      ...group,
+      participants: group.participants.filter((p) => p.userId !== 'carol'),
+    };
     const second = await alice.e2ee.encrypt(smaller, 'without carol');
     expect(second.preamble).toHaveLength(1); // rotated: bob gets a new distribution
     for (const p of second.preamble) await bob.e2ee.decrypt(smaller, wire(group.id, 'alice', p));
-    expect(await bob.e2ee.decrypt(smaller, wire(group.id, 'alice', second.payload))).toEqual({ kind: 'text', text: 'without carol' });
+    expect(await bob.e2ee.decrypt(smaller, wire(group.id, 'alice', second.payload))).toEqual({
+      kind: 'text',
+      text: 'without carol',
+    });
   });
 
   it('replenishes one-time pre-keys when the server runs low and re-uploads when forgotten', async () => {

@@ -7,7 +7,11 @@ if (!globalThis.crypto?.subtle) {
 }
 if (typeof globalThis.matchMedia !== 'function') {
   Object.defineProperty(globalThis, 'matchMedia', {
-    value: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    value: () => ({
+      matches: false,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
     configurable: true,
   });
 }

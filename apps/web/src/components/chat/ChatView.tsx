@@ -18,7 +18,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const toast = useUiStore((s) => s.toast);
 
   useEffect(() => {
-    openConversation(conversationId).catch((err: unknown) => toast('error', err instanceof Error ? err.message : 'Could not open conversation'));
+    openConversation(conversationId).catch((err: unknown) =>
+      toast('error', err instanceof Error ? err.message : 'Could not open conversation'),
+    );
   }, [conversationId, toast]);
 
   if (!user) return null;

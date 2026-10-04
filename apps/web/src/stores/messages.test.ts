@@ -52,7 +52,13 @@ describe('messages store', () => {
       status: 'sending',
     });
     expect(Object.keys(useMessagesStore.getState().pending)).toEqual(['client-7']);
-    s.upsert(msg(7, { kind: 'encrypted', text: null, encrypted: { v: 1, suite: 'x', header: 'a', ciphertext: 'b' } }));
+    s.upsert(
+      msg(7, {
+        kind: 'encrypted',
+        text: null,
+        encrypted: { v: 1, suite: 'x', header: 'a', ciphertext: 'b' },
+      }),
+    );
     const state = useMessagesStore.getState();
     expect(state.pending).toEqual({});
     expect(state.plaintext.m7).toBe('secret plaintext');
@@ -87,7 +93,10 @@ describe('messages store', () => {
       status: 'sending',
     });
     s.setPendingStatus('k', 'failed', 'boom');
-    expect(useMessagesStore.getState().pending.k).toMatchObject({ status: 'failed', error: 'boom' });
+    expect(useMessagesStore.getState().pending.k).toMatchObject({
+      status: 'failed',
+      error: 'boom',
+    });
     s.setDecryptStatus('m1', 'waiting-keys');
     expect(useMessagesStore.getState().decrypt.m1).toBe('waiting-keys');
     s.setPlaintext('m1', 'now readable');

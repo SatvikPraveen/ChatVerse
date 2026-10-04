@@ -1,6 +1,17 @@
-import type { OneTimePreKey, PreKeyBundle, PreKeyBundleUpload, SignedPreKey } from '@chatverse/protocol';
+import type {
+  OneTimePreKey,
+  PreKeyBundle,
+  PreKeyBundleUpload,
+  SignedPreKey,
+} from '@chatverse/protocol';
 import { fromBase64Url, toBase64Url } from './encoding.js';
-import { generateDhKeyPair, generateSigningKeyPair, sign, verify, type KeyPair } from './primitives.js';
+import {
+  generateDhKeyPair,
+  generateSigningKeyPair,
+  sign,
+  verify,
+  type KeyPair,
+} from './primitives.js';
 
 /**
  * Long-term and medium-term key material for one device.
@@ -31,7 +42,10 @@ export function createDeviceIdentity(deviceId: string): DeviceIdentity {
   return { deviceId, identity: generateDhKeyPair(), signing: generateSigningKeyPair() };
 }
 
-export function createSignedPreKey(identity: DeviceIdentity, id: number): { stored: StoredPreKey; published: SignedPreKey } {
+export function createSignedPreKey(
+  identity: DeviceIdentity,
+  id: number,
+): { stored: StoredPreKey; published: SignedPreKey } {
   const keyPair = generateDhKeyPair();
   const signature = sign(keyPair.publicKey, identity.signing.privateKey);
   return {
@@ -40,7 +54,10 @@ export function createSignedPreKey(identity: DeviceIdentity, id: number): { stor
   };
 }
 
-export function createOneTimePreKeys(startId: number, count: number): { stored: StoredPreKey[]; published: OneTimePreKey[] } {
+export function createOneTimePreKeys(
+  startId: number,
+  count: number,
+): { stored: StoredPreKey[]; published: OneTimePreKey[] } {
   const stored: StoredPreKey[] = [];
   const published: OneTimePreKey[] = [];
   for (let i = 0; i < count; i++) {
@@ -52,7 +69,10 @@ export function createOneTimePreKeys(startId: number, count: number): { stored: 
 }
 
 /** Bootstrap a full key store for a brand-new device. */
-export function createDeviceKeyStore(deviceId: string, oneTimePreKeyCount = 20): { store: DeviceKeyStore; upload: PreKeyBundleUpload } {
+export function createDeviceKeyStore(
+  deviceId: string,
+  oneTimePreKeyCount = 20,
+): { store: DeviceKeyStore; upload: PreKeyBundleUpload } {
   const identity = createDeviceIdentity(deviceId);
   const spk = createSignedPreKey(identity, 1);
   const opks = createOneTimePreKeys(2, oneTimePreKeyCount);
@@ -99,7 +119,10 @@ export function verifyPreKeyBundle(bundle: PreKeyBundle): boolean {
  * man-in-the-middle at the key server. Symmetric in its arguments.
  */
 export function safetyNumber(identityKeyA: Uint8Array, identityKeyB: Uint8Array): string {
-  const [first, second] = toBase64Url(identityKeyA) < toBase64Url(identityKeyB) ? [identityKeyA, identityKeyB] : [identityKeyB, identityKeyA];
+  const [first, second] =
+    toBase64Url(identityKeyA) < toBase64Url(identityKeyB)
+      ? [identityKeyA, identityKeyB]
+      : [identityKeyB, identityKeyA];
   const digest = hashToDigits(new Uint8Array([...first, ...second]));
   return digest.match(/.{1,5}/g)!.join(' ');
 }

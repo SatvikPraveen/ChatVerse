@@ -185,7 +185,12 @@ export const messagesQuerySchema = z
   .object({
     beforeSeq: z.coerce.number().int().min(1).optional(),
     afterSeq: z.coerce.number().int().min(0).optional(),
-    limit: z.coerce.number().int().min(1).max(LIMITS.PAGE_SIZE_MAX).default(LIMITS.PAGE_SIZE_DEFAULT),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(LIMITS.PAGE_SIZE_MAX)
+      .default(LIMITS.PAGE_SIZE_DEFAULT),
   })
   .refine((v) => !(v.beforeSeq !== undefined && v.afterSeq !== undefined), {
     message: 'beforeSeq and afterSeq are mutually exclusive',
@@ -219,7 +224,10 @@ export const joinConversationSchema = z.object({ conversationId: objectIdSchema 
 
 // Keys --------------------------------------------------------------------
 
-const preKeySchema = z.object({ id: z.number().int().min(0), publicKey: base64urlSchema.min(32).max(128) });
+const preKeySchema = z.object({
+  id: z.number().int().min(0),
+  publicKey: base64urlSchema.min(32).max(128),
+});
 
 export const preKeyBundleUploadSchema = z.object({
   deviceId: deviceIdSchema,

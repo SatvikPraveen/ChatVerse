@@ -28,7 +28,8 @@ import type { ApiClient } from './api';
 export function createEndpoints(api: ApiClient) {
   return {
     auth: {
-      register: (body: RegisterBody) => api.post<AuthResponse>('/auth/register', body, { anonymous: true }),
+      register: (body: RegisterBody) =>
+        api.post<AuthResponse>('/auth/register', body, { anonymous: true }),
       login: (body: LoginBody) => api.post<AuthResponse>('/auth/login', body, { anonymous: true }),
       refresh: (refreshToken: string) =>
         api.post<AuthResponse>('/auth/refresh', { refreshToken }, { anonymous: true }),
@@ -37,16 +38,21 @@ export function createEndpoints(api: ApiClient) {
     users: {
       me: () => api.get<UserProfile>('/users/me'),
       updateMe: (body: UpdateMeInput) => api.patch<UserProfile>('/users/me', body),
-      search: (q: string, limit = 20) => api.get<PublicUser[]>('/users/search', { query: { q, limit } }),
+      search: (q: string, limit = 20) =>
+        api.get<PublicUser[]>('/users/search', { query: { q, limit } }),
       get: (id: string) => api.get<PublicUser>(`/users/${id}`),
-      presence: (ids: string[]) => api.get<Presence[]>('/users/presence', { query: { ids: ids.join(',') } }),
+      presence: (ids: string[]) =>
+        api.get<Presence[]>('/users/presence', { query: { ids: ids.join(',') } }),
     },
     conversations: {
       list: (cursor?: string | null, limit = 50) =>
-        api.get<ConversationsResponse>('/conversations', { query: { cursor: cursor ?? undefined, limit } }),
+        api.get<ConversationsResponse>('/conversations', {
+          query: { cursor: cursor ?? undefined, limit },
+        }),
       create: (body: CreateConversationBody) => api.post<Conversation>('/conversations', body),
       get: (id: string) => api.get<Conversation>(`/conversations/${id}`),
-      update: (id: string, body: UpdateConversationBody) => api.patch<Conversation>(`/conversations/${id}`, body),
+      update: (id: string, body: UpdateConversationBody) =>
+        api.patch<Conversation>(`/conversations/${id}`, body),
       addParticipants: (id: string, userIds: string[]) =>
         api.post<Conversation>(`/conversations/${id}/participants`, { userIds }),
       removeParticipant: (id: string, userId: string) =>
@@ -64,10 +70,12 @@ export function createEndpoints(api: ApiClient) {
       uploadOneTime: (deviceId: string, oneTimePreKeys: OneTimePreKey[]) =>
         api.post<null>('/keys/one-time', { deviceId, oneTimePreKeys }),
       bundleFor: (userId: string) => api.get<PreKeyBundle>(`/keys/bundle/${userId}`),
-      count: (deviceId: string) => api.get<PreKeyCountResponse>('/keys/count', { query: { deviceId } }),
+      count: (deviceId: string) =>
+        api.get<PreKeyCountResponse>('/keys/count', { query: { deviceId } }),
     },
     uploads: {
-      presign: (body: PresignUploadBody) => api.post<PresignUploadResponse>('/uploads/presign', body),
+      presign: (body: PresignUploadBody) =>
+        api.post<PresignUploadResponse>('/uploads/presign', body),
       complete: (attachmentId: string) => api.post<null>(`/uploads/${attachmentId}/complete`),
     },
     push: {

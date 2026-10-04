@@ -32,5 +32,9 @@ export function formatLastSeen(iso: string, now = Date.now()): string {
 export function sameDay(a: string, b: string): boolean {
   const da = new Date(a);
   const db = new Date(b);
-  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }

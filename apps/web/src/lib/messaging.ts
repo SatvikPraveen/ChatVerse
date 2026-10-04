@@ -1,4 +1,10 @@
-import type { Conversation, EncryptedPayload, Message, MessagePreview, PublicUser } from '@chatverse/protocol';
+import type {
+  Conversation,
+  EncryptedPayload,
+  Message,
+  MessagePreview,
+  PublicUser,
+} from '@chatverse/protocol';
 import { useAuthStore } from '@/stores/auth';
 import { useConversationsStore } from '@/stores/conversations';
 import { lowestSeq, useMessagesStore, type PendingMessage } from '@/stores/messages';
@@ -28,7 +34,8 @@ export async function loadConversations(): Promise<void> {
   const r = getRuntime();
   if (!r) return;
   const ids = new Set<string>();
-  for (const c of page.items) for (const p of c.participants) if (p.userId !== r.userId) ids.add(p.userId);
+  for (const c of page.items)
+    for (const p of c.participants) if (p.userId !== r.userId) ids.add(p.userId);
   await Promise.all([ensureUsers([...ids]), refreshPresence([...ids])]);
 }
 
@@ -44,7 +51,9 @@ export async function ensureUsers(userIds: string[]): Promise<void> {
   const known = useUsersStore.getState().byId;
   const missing = [...new Set(userIds)].filter((id) => !known[id]);
   if (missing.length === 0) return;
-  const users = await Promise.all(missing.map((id) => api.users.get(id).catch((): PublicUser | null => null)));
+  const users = await Promise.all(
+    missing.map((id) => api.users.get(id).catch((): PublicUser | null => null)),
+  );
   useUsersStore.getState().upsertMany(users.filter((u): u is PublicUser => u !== null));
 }
 
@@ -72,16 +81,28 @@ async function conversationFor(id: string): Promise<Conversation | null> {
 // ---------------------------------------------------------------------------------------------
 
 function preview(m: Message): MessagePreview {
-  return { id: m.id, seq: m.seq, senderId: m.senderId, kind: m.kind, text: m.text, createdAt: m.createdAt };
+  return {
+    id: m.id,
+    seq: m.seq,
+    senderId: m.senderId,
+    kind: m.kind,
+    text: m.text,
+    createdAt: m.createdAt,
+  };
 }
 
 /**
  * Store messages, decrypt what we can and update conversation heads. Called for history pages,
  * sync pulls and live events alike; every step is idempotent.
  */
-export async function ingestMessages(conversationId: string, messages: Message[], opts?: { hasOlder?: boolean }): Promise<void> {
+export async function ingestMessages(
+  conversationId: string,
+  messages: Message[],
+  opts?: { hasOlder?: boolean },
+): Promise<void> {
   if (messages.length === 0) {
-    if (opts?.hasOlder !== undefined) useMessagesStore.getState().upsertMany(conversationId, [], opts);
+    if (opts?.hasOlder !== undefined)
+      useMessagesStore.getState().upsertMany(conversationId, [], opts);
     return;
   }
   const store = useMessagesStore.getState();
@@ -127,7 +148,9 @@ export async function retryWaiting(conversationId: string): Promise<void> {
   const s = useMessagesStore.getState();
   const conv = s.conversations[conversationId];
   if (!conv) return;
-  const waiting = conv.order.map((id) => conv.byId[id]!).filter((m) => s.decrypt[m.id] === 'waiting-keys');
+  const waiting = conv.order
+    .map((id) => conv.byId[id]!)
+    .filter((m) => s.decrypt[m.id] === 'waiting-keys');
   if (waiting.length === 0) return;
   for (const m of waiting) s.setDecryptStatus(m.id, null);
   await ingestMessages(conversationId, waiting);
@@ -176,7 +199,11 @@ export async function loadOlder(conversationId: string): Promise<void> {
 // Sending
 // ---------------------------------------------------------------------------------------------
 
-export async function sendText(conversationId: string, text: string, replyTo: string | null = null): Promise<void> {
+export async function sendText(
+  conversationId: string,
+  text: string,
+  replyTo: string | null = null,
+): Promise<void> {
   const r = requireRuntime();
   const conversation = await conversationFor(conversationId);
   if (!conversation) throw new Error('unknown conversation');
@@ -202,7 +229,13 @@ export async function sendText(conversationId: string, text: string, replyTo: st
     try {
       const { payload, preamble } = await r.e2ee.encrypt(conversation, text);
       for (const control of preamble) {
-        await r.outbox.enqueue({ conversationId, clientMsgId: crypto.randomUUID(), kind: 'encrypted', encrypted: control, control: true });
+        await r.outbox.enqueue({
+          conversationId,
+          clientMsgId: crypto.randomUUID(),
+          kind: 'encrypted',
+          encrypted: control,
+          control: true,
+        });
       }
       await r.outbox.enqueue({ ...base, clientMsgId, kind: 'encrypted', encrypted: payload, text });
     } catch (err) {
@@ -220,11 +253,17 @@ export async function sendText(conversationId: string, text: string, replyTo: st
 export async function encryptOutboxItem(item: OutboxItem): Promise<EncryptedPayload> {
   const r = requireRuntime();
   const conversation = await conversationFor(item.conversationId);
-  if (!conversation || item.text === undefined) throw new ApiClientError('NOT_FOUND', 'conversation unavailable', 404);
+  if (!conversation || item.text === undefined)
+    throw new ApiClientError('NOT_FOUND', 'conversation unavailable', 404);
   const { payload, preamble } = await r.e2ee.encrypt(conversation, item.text);
   // Any distribution produced now is sent directly; the outbox item is already at the head.
   for (const control of preamble) {
-    await emitWithAck('message:send', { conversationId: item.conversationId, clientMsgId: crypto.randomUUID(), kind: 'encrypted', encrypted: control });
+    await emitWithAck('message:send', {
+      conversationId: item.conversationId,
+      clientMsgId: crypto.randomUUID(),
+      kind: 'encrypted',
+      encrypted: control,
+    });
   }
   return payload;
 }
@@ -270,7 +309,12 @@ export async function editMessage(message: Message, text: string): Promise<void>
   if (conversation.encrypted) {
     const { payload, preamble } = await r.e2ee.encrypt(conversation, text);
     for (const control of preamble) {
-      await emitWithAck('message:send', { conversationId: conversation.id, clientMsgId: crypto.randomUUID(), kind: 'encrypted', encrypted: control });
+      await emitWithAck('message:send', {
+        conversationId: conversation.id,
+        clientMsgId: crypto.randomUUID(),
+        kind: 'encrypted',
+        encrypted: control,
+      });
     }
     result = await emitWithAck('message:edit', { messageId: message.id, encrypted: payload });
     r.e2ee.rememberPlaintext(message.id, text);
@@ -283,11 +327,16 @@ export async function editMessage(message: Message, text: string): Promise<void>
 
 export async function deleteMessage(message: Message): Promise<void> {
   await emitWithAck('message:delete', { messageId: message.id });
-  useMessagesStore.getState().upsert({ ...message, deletedAt: new Date().toISOString(), text: null, encrypted: null });
+  useMessagesStore
+    .getState()
+    .upsert({ ...message, deletedAt: new Date().toISOString(), text: null, encrypted: null });
 }
 
 export async function toggleReaction(message: Message, emoji: string): Promise<void> {
-  const { message: updated } = await emitWithAck('reaction:toggle', { messageId: message.id, emoji });
+  const { message: updated } = await emitWithAck('reaction:toggle', {
+    messageId: message.id,
+    emoji,
+  });
   useMessagesStore.getState().upsert(updated);
 }
 

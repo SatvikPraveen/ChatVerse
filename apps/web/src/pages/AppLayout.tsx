@@ -33,7 +33,8 @@ export function AppLayout() {
     };
   }, [status, toast]);
 
-  if (status !== 'authenticated') return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (status !== 'authenticated')
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   // On narrow screens the sidebar is shown only on the root route; a conversation takes the screen.
   const inConversation = /^\/app\/(c\/|settings)/.test(location.pathname);
