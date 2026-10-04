@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { createAdapter } from '@socket.io/redis-adapter';
+import { Redis } from 'ioredis';
 import { Server } from 'socket.io';
 import { ErrorCode, PROTOCOL_VERSION, ROOMS, deviceIdSchema } from '@chatverse/protocol';
 import type { Deps } from '../deps.js';
@@ -39,11 +40,19 @@ export function createGateway(httpServer: HttpServer, deps: Deps, services: Serv
     serveClient: false,
   });
 
+  // Fan-out pub/sub can live on its own Redis (REDIS_ADAPTER_URL) so adapter bandwidth never
+  // competes with the coordination keys (sequencing, locks, presence, rate limits).
   let pub: ReturnType<Deps['redis']['duplicate']> | null = null;
   let sub: ReturnType<Deps['redis']['duplicate']> | null = null;
   if (deps.redis.shared) {
-    pub = deps.redis.duplicate();
-    sub = deps.redis.duplicate();
+    if (deps.env.REDIS_ADAPTER_URL) {
+      pub = new Redis(deps.env.REDIS_ADAPTER_URL, { maxRetriesPerRequest: null });
+      sub = pub.duplicate();
+      deps.logger.info('socket.io adapter on dedicated redis');
+    } else {
+      pub = deps.redis.duplicate();
+      sub = deps.redis.duplicate();
+    }
     io.adapter(createAdapter(pub, sub));
   }
 

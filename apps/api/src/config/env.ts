@@ -23,6 +23,11 @@ const envSchema = z.object({
 
   MONGODB_URI: z.string().min(1),
   REDIS_URL: z.string().min(1).optional(),
+  /**
+   * Optional second Redis used only by the Socket.IO adapter (pub/sub fan-out). Separates
+   * fan-out bandwidth from the coordination keys (sequencing, presence, locks, rate limits).
+   */
+  REDIS_ADAPTER_URL: z.string().min(1).optional(),
 
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
