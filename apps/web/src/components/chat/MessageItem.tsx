@@ -91,7 +91,9 @@ export function MessageItem({
               {replyTarget.kind === 'encrypted' ? (replyPlain ?? '🔒') : (replyTarget.text ?? '')}
             </blockquote>
           )}
-          <p className="whitespace-pre-wrap break-words">{text}</p>
+          <p className="whitespace-pre-wrap break-words" data-testid="message-text">
+            {text}
+          </p>
           <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted">
             {message.editedAt && <span>edited</span>}
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

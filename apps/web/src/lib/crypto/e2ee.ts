@@ -281,7 +281,14 @@ export class E2EE {
     const cached = this.plaintext[message.id];
     if (cached !== undefined) return { kind: 'text', text: cached };
     if (!message.encrypted) return { kind: 'failed', reason: 'no payload' };
-    if (message.senderId === this.opts.userId) return { kind: 'other-device' };
+    if (message.senderId === this.opts.userId) {
+      // In a group, pairwise payloads are only ever sender-key distribution control messages;
+      // our own copies must stay hidden rather than render as undecryptable messages.
+      if (conversation.kind === 'group' && message.encrypted.suite === SUITES.PAIRWISE) {
+        return { kind: 'hidden' };
+      }
+      return { kind: 'other-device' };
+    }
 
     const outcome =
       message.encrypted.suite === SUITES.PAIRWISE

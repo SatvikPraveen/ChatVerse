@@ -89,7 +89,10 @@ export function InfoPanel({
               Compare this number with {displayNameOf(users, peer)} out of band. If it matches,
               nobody is intercepting your messages.
             </p>
-            <p className="mt-2 break-words rounded-lg bg-surface-2 p-2 font-mono text-xs leading-relaxed">
+            <p
+              className="mt-2 break-words rounded-lg bg-surface-2 p-2 font-mono text-xs leading-relaxed"
+              data-testid="safety-number"
+            >
               {safety ?? 'Available after the first encrypted message.'}
             </p>
           </section>

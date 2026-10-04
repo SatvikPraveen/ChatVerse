@@ -5,7 +5,13 @@ import { usePresenceStore } from '@/stores/presence';
 import { useTypingStore } from '@/stores/typing';
 import { useUiStore } from '@/stores/ui';
 import { useUsersStore } from '@/stores/users';
-import { ensureUsers, loadConversations, onLiveMessage, refreshPresence } from './messaging';
+import {
+  ensureUsers,
+  loadConversations,
+  onLiveMessage,
+  refreshPresence,
+  retryPendingOpens,
+} from './messaging';
 import { resetReceiptState } from './receipts';
 import { refreshAccessToken, type Runtime } from './session';
 import { emitWithAck } from './socket';
@@ -36,11 +42,12 @@ export function bindRealtime(r: Runtime): void {
             ),
         );
         await r.sync.resumeAll();
+        await retryPendingOpens();
         await loadConversations().catch(() => undefined);
         await r.outbox.flush();
       })();
     } else {
-      void r.outbox.flush();
+      void retryPendingOpens().then(() => r.outbox.flush());
     }
     wasConnected = true;
   });
@@ -59,6 +66,12 @@ export function bindRealtime(r: Runtime): void {
   });
   window.addEventListener('online', () => {
     if (!socket.connected) socket.connect();
+  });
+  window.addEventListener('offline', () => {
+    // Fail fast instead of waiting for the heartbeat timeout: sends go straight to the outbox
+    // and the UI reports the state immediately; the 'online' handler above reconnects.
+    ui.setConnection('offline');
+    if (socket.connected) socket.disconnect();
   });
 
   socket.on('session:ready', ({ user }) => {

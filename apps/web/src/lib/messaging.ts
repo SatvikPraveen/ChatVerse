@@ -167,24 +167,42 @@ export async function onLiveMessage(message: Message): Promise<void> {
 // History
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Conversations whose initial load has not completed. Until it completes the synchroniser has no
+ * watermark for them, so a reconnect would not catch them up. If the network drops mid-open the
+ * load fails; `retryPendingOpens` (called on reconnect) finishes the job.
+ */
+const pendingOpens = new Set<string>();
+
 /** Join the room and load the latest page. Safe to call repeatedly. */
 export async function openConversation(conversationId: string): Promise<void> {
   const r = requireRuntime();
+  pendingOpens.add(conversationId);
   const conversation = await conversationFor(conversationId);
-  if (!conversation) return;
+  if (!conversation) {
+    pendingOpens.delete(conversationId);
+    return;
+  }
   void ensureUsers(conversation.participants.map((p) => p.userId));
   if (r.socket.connected) {
     await emitWithAck('conversation:join', { conversationId }).catch(() => undefined);
   }
   const state = useMessagesStore.getState().conversations[conversationId];
-  if (state?.loaded) {
-    await r.sync.catchUp(conversationId).catch(() => undefined);
+  if (state?.loaded && r.sync.trackedConversations().includes(conversationId)) {
+    await r.sync.catchUp(conversationId);
+    pendingOpens.delete(conversationId);
     return;
   }
   const page = await api.conversations.messages(conversationId, { limit: PAGE });
   const hasOlder = page.items.length > 0 ? page.items[0]!.seq > 1 : false;
   await ingestMessages(conversationId, page.items, { hasOlder });
   r.sync.setKnown(conversationId, page.headSeq);
+  pendingOpens.delete(conversationId);
+}
+
+/** Finish any conversation load that a network failure interrupted. */
+export async function retryPendingOpens(): Promise<void> {
+  await Promise.all([...pendingOpens].map((id) => openConversation(id).catch(() => undefined)));
 }
 
 export async function loadOlder(conversationId: string): Promise<void> {
@@ -275,8 +293,11 @@ export function onOutboxSent(item: OutboxItem, message: Message): void {
   } else if (item.text !== undefined && r) {
     r.e2ee.rememberPlaintext(message.id, item.text);
   }
-  void ingestMessages(message.conversationId, [message]);
-  r?.sync.setKnown(message.conversationId, message.seq);
+  // Route the acknowledged message through the synchroniser like a live one: if messages from
+  // others arrived while we were offline, our own ack is the first thing that reveals the gap,
+  // and blindly advancing the watermark to its seq would hide those messages forever.
+  if (r) void r.sync.onIncoming(message);
+  else void ingestMessages(message.conversationId, [message]);
 }
 
 export function onOutboxFailed(item: OutboxItem, error: Error): void {

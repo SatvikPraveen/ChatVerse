@@ -10,7 +10,9 @@ export function PendingItem({ pending }: { pending: PendingMessage }) {
     <li className="flex justify-end px-4">
       <div className="max-w-[75%]">
         <div className="rounded-2xl rounded-br-md bg-bubble-own px-3 py-2 text-sm opacity-80 shadow-sm">
-          <p className="whitespace-pre-wrap break-words">{pending.text}</p>
+          <p className="whitespace-pre-wrap break-words" data-testid="pending-text">
+            {pending.text}
+          </p>
           <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted">
             <time dateTime={pending.createdAt}>{formatTime(pending.createdAt)}</time>
             <ReceiptTicks pending={pending.status} />
