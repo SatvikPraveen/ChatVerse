@@ -38,6 +38,9 @@ describe('health & metrics', () => {
       error: { code: 'NOT_FOUND', message: expect.any(String), requestId: 'req-123456789' },
     });
     expect(res.headers['x-request-id']).toBe('req-123456789');
+    expect(res.headers['content-security-policy']).toBe(
+      "default-src 'none';frame-ancestors 'none'",
+    );
   });
 
   it('applies the HTTP rate limit headers', async () => {

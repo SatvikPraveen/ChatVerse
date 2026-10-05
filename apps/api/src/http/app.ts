@@ -24,8 +24,16 @@ export function createApp(deps: Deps, services: Services): Express {
   app.set('trust proxy', deps.env.TRUST_PROXY ? 1 : false);
 
   app.use(requestId);
+  // The API only serves JSON and Prometheus text, never documents, so the strictest policy applies:
+  // nothing may load and nothing may frame a response.
   app.use(
-    helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }),
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+      },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
   );
   app.use(
     cors({
