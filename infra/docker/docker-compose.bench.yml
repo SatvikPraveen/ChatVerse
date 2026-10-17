@@ -59,7 +59,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     command: ['redis-server', '--save', '', '--appendonly', 'no']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -84,7 +84,7 @@ services:
       - '4002:4000'
 
   lb:
-    image: nginx:1.27-alpine
+    image: nginx:1.29-alpine
     ports:
       - '4000:80'
     volumes:
@@ -96,7 +96,7 @@ services:
         condition: service_healthy
 
   prometheus:
-    image: prom/prometheus:v2.54.1
+    image: prom/prometheus:v3.15.0
     command: ['--config.file=/etc/prometheus/prometheus.yml']
     ports:
       - '9090:9090'
