@@ -12,9 +12,14 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # Major versions are migrated deliberately, not as a monthly bump.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       npm-deps:
         patterns: ['*']
+        update-types: ['minor', 'patch']
   - package-ecosystem: docker-compose
     directory: '/infra/docker'
     schedule:
