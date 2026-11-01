@@ -37,7 +37,7 @@ x-api-env: &api-env
 
 services:
   mongo:
-    image: mongo:7
+    image: mongo:9
     restart: unless-stopped
     command: ['mongod', '--wiredTigerCacheSizeGB', '0.5']
     environment:
@@ -156,7 +156,7 @@ services:
         condition: service_healthy
 
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -170,7 +170,7 @@ services:
       - api
 
   grafana:
-    image: grafana/grafana:13.2.4
+    image: grafana/grafana:13.3.0
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: admin
