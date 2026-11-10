@@ -44,12 +44,12 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  TRUST_PROXY: bool.default('false'),
+  TRUST_PROXY: bool.default(false),
   RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
   /** Credential endpoints (register/login/refresh) per IP per minute. Raise only for load tests. */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
-  METRICS_ENABLED: bool.default('true'),
+  METRICS_ENABLED: bool.default(true),
 
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),

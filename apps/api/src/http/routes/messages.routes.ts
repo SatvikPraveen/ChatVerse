@@ -11,7 +11,7 @@ import { validate } from '../middleware/validate.js';
 import { authOf, ok, wrap } from '../respond.js';
 
 const idParams = z.object({ id: objectIdSchema });
-const editBody = messageEditSchema.innerType().omit({ messageId: true });
+const editBody = z.object(messageEditSchema.shape).omit({ messageId: true });
 const reactionBody = reactionSchema.omit({ messageId: true });
 
 export function messagesRoutes(services: Services): Router {

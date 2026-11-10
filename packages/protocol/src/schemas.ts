@@ -67,7 +67,15 @@ export const updateMeSchema = z
     displayName: displayNameSchema.optional(),
     bio: z.string().trim().max(280).nullable().optional(),
     avatarUrl: z.string().url().max(2048).nullable().optional(),
-    settings: userSettingsSchema.deepPartial().optional(),
+    // zod v4 removed .deepPartial(); this is its expansion for the two-level settings shape.
+    settings: z
+      .object({
+        theme: userSettingsSchema.shape.theme,
+        notifications: userSettingsSchema.shape.notifications.partial(),
+        privacy: userSettingsSchema.shape.privacy.partial(),
+      })
+      .partial()
+      .optional(),
   })
   .strict();
 
@@ -168,8 +176,13 @@ export const messageSendSchema = z
     }
   });
 
-/** REST variant: conversationId comes from the URL. */
-export const messageCreateBodySchema = messageSendSchema.innerType().omit({ conversationId: true });
+/**
+ * REST variant: conversationId comes from the URL. Built from the bare shape so the cross-field
+ * refinement is not applied (zod v4 keeps refinements on the object, there is no .innerType()).
+ */
+export const messageCreateBodySchema = z
+  .object(messageSendSchema.shape)
+  .omit({ conversationId: true });
 
 export const messageEditSchema = z
   .object({
